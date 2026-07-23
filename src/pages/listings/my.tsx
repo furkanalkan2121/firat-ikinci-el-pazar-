@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
-import { getUserListings, deleteListing, type Listing } from '../../lib/localStore';
+import { getUserListings, deleteListing, toggleListingSold, type Listing } from '../../lib/localStore';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'next/router';
 
@@ -116,6 +116,7 @@ export default function MyListings() {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.375rem', flexWrap: 'wrap' }}>
                       {listing.category && <span className="badge badge-red" style={{ fontSize: '0.7rem' }}>{listing.category}</span>}
+                      {listing.isSold && <span className="badge" style={{ background: '#EF4444', color: '#fff', fontSize: '0.7rem' }}>🏷️ SATILDI</span>}
                       <span style={{ fontSize: '0.72rem', color: '#9CA3AF' }}>{listing.createdAt ? timeAgo(listing.createdAt) : ''}</span>
                     </div>
                     <h3 style={{ fontWeight: 700, fontSize: '1rem', color: '#111827', margin: 0, lineHeight: 1.3 }}>
@@ -129,21 +130,37 @@ export default function MyListings() {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 800, fontSize: '1.15rem', color: '#8B1A1A' }}>
+                    <span style={{ fontWeight: 800, fontSize: '1.15rem', color: listing.isSold ? '#9CA3AF' : '#8B1A1A', textDecoration: listing.isSold ? 'line-through' : 'none' }}>
                       {listing.price !== undefined ? `${listing.price.toLocaleString('tr-TR')} ₺` : 'Fiyatsız'}
                     </span>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
                       <Link
                         href={`/listings/${listing.id}`}
                         className="btn btn-outline btn-sm"
                       >
-                        Görüntüle
+                        Gör
                       </Link>
+                      <Link
+                        href={`/listings/edit/${listing.id}`}
+                        className="btn btn-gold btn-sm"
+                      >
+                        ✏️ Düzenle
+                      </Link>
+                      <button
+                        onClick={async () => {
+                          const newStatus = await toggleListingSold(listing.id!);
+                          setListings(prev => prev.map(l => l.id === listing.id ? { ...l, isSold: newStatus } : l));
+                        }}
+                        className="btn btn-outline btn-sm"
+                        style={{ borderColor: listing.isSold ? '#22C55E' : '#E5E7EB', color: listing.isSold ? '#166534' : '#374151' }}
+                      >
+                        {listing.isSold ? '🔄 Aktif et' : '🏷️ Satıldı'}
+                      </button>
                       <button
                         onClick={() => handleDelete(listing.id!, listing.title)}
                         disabled={deletingId === listing.id}
                         style={{
-                          padding: '0.4rem 0.875rem', borderRadius: '0.375rem', fontSize: '0.8rem',
+                          padding: '0.4rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8rem',
                           border: '1.5px solid #EF4444', background: deletingId === listing.id ? '#FEE2E2' : 'transparent',
                           color: '#EF4444', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                           transition: 'all 0.2s', boxShadow: 'none',
@@ -151,7 +168,7 @@ export default function MyListings() {
                         onMouseEnter={e => { if (deletingId !== listing.id) { e.currentTarget.style.background = '#EF4444'; e.currentTarget.style.color = '#fff'; } }}
                         onMouseLeave={e => { if (deletingId !== listing.id) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#EF4444'; } }}
                       >
-                        {deletingId === listing.id ? 'Siliniyor…' : '🗑 Sil'}
+                        {deletingId === listing.id ? '…' : '🗑 Sil'}
                       </button>
                     </div>
                   </div>

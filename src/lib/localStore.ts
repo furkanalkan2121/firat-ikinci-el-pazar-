@@ -13,6 +13,7 @@ export type Listing = {
   ownerId?: string;
   category?: string;
   createdAt?: string;
+  isSold?: boolean;
 };
 
 const LISTINGS_KEY = 'fu_listings';
@@ -186,5 +187,30 @@ export function getUserListings(userId: string): Promise<Listing[]> {
         .filter(l => l.ownerId === userId)
         .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
     );
+  });
+}
+
+export function updateListing(id: string, data: Partial<Omit<Listing, 'id'>>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const raw = localStorage.getItem(LISTINGS_KEY);
+    const items: Listing[] = raw ? JSON.parse(raw) : [];
+    const index = items.findIndex(l => l.id === id);
+    if (index === -1) return reject(new Error('İlan bulunamadı.'));
+    items[index] = { ...items[index], ...data };
+    localStorage.setItem(LISTINGS_KEY, JSON.stringify(items));
+    resolve();
+  });
+}
+
+export function toggleListingSold(id: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const raw = localStorage.getItem(LISTINGS_KEY);
+    const items: Listing[] = raw ? JSON.parse(raw) : [];
+    const index = items.findIndex(l => l.id === id);
+    if (index === -1) return reject(new Error('İlan bulunamadı.'));
+    const newStatus = !items[index].isSold;
+    items[index].isSold = newStatus;
+    localStorage.setItem(LISTINGS_KEY, JSON.stringify(items));
+    resolve(newStatus);
   });
 }

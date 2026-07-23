@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
-import { getListing, deleteListing, type Listing } from '../../lib/localStore';
+import { getListing, deleteListing, toggleListingSold, type Listing } from '../../lib/localStore';
 import { useAuth } from '../../context/AuthContext';
 import { sendMessage, makeConvId, getUserConversations } from '../../lib/localMessages';
 
@@ -165,9 +165,14 @@ export default function ListingDetail() {
 
               {/* Bilgi kartı */}
               <div className="card animate-slide-up" style={{ padding: '1.5rem', border: 'none', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {/* Kategori + tarih */}
+                {/* Kategori + Satıldı Rozeti + tarih */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  {listing.category && <span className="badge badge-red">{listing.category}</span>}
+                  <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+                    {listing.category && <span className="badge badge-red">{listing.category}</span>}
+                    {listing.isSold && (
+                      <span className="badge" style={{ background: '#EF4444', color: '#fff' }}>🏷️ SATILDI</span>
+                    )}
+                  </div>
                   <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>{listing.createdAt ? timeAgo(listing.createdAt) : ''}</span>
                 </div>
 
@@ -179,10 +184,10 @@ export default function ListingDetail() {
                 {/* Fiyat */}
                 {listing.price !== undefined ? (
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
-                    <span style={{ fontSize: '2rem', fontWeight: 900, color: '#8B1A1A', letterSpacing: '-0.02em' }}>
+                    <span style={{ fontSize: '2rem', fontWeight: 900, color: listing.isSold ? '#9CA3AF' : '#8B1A1A', letterSpacing: '-0.02em', textDecoration: listing.isSold ? 'line-through' : 'none' }}>
                       {listing.price.toLocaleString('tr-TR')}
                     </span>
-                    <span style={{ fontWeight: 700, color: '#8B1A1A', fontSize: '1.1rem' }}>₺</span>
+                    <span style={{ fontWeight: 700, color: listing.isSold ? '#9CA3AF' : '#8B1A1A', fontSize: '1.1rem' }}>₺</span>
                   </div>
                 ) : (
                   <span className="badge badge-gray" style={{ fontSize: '0.85rem' }}>Fiyat belirtilmemiş</span>
@@ -205,32 +210,53 @@ export default function ListingDetail() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', marginTop: 'auto' }}>
                   {isOwner ? (
                     <>
-                      <Link href={`/listings/my`} className="btn btn-outline" style={{ justifyContent: 'center' }}>
-                        İlanlarıma Git
-                      </Link>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <Link href={`/listings/edit/${listing.id}`} className="btn btn-gold btn-sm" style={{ flex: 1, justifyContent: 'center' }}>
+                          ✏️ Düzenle
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const newStatus = await toggleListingSold(listing.id!);
+                            setListing(prev => prev ? { ...prev, isSold: newStatus } : null);
+                          }}
+                          className="btn btn-outline btn-sm"
+                          style={{ flex: 1, justifyContent: 'center' }}
+                        >
+                          {listing.isSold ? '🔄 Aktif Et' : '🏷️ Satıldı Yap'}
+                        </button>
+                      </div>
                       <button onClick={handleDelete} disabled={deleting}
                         style={{ padding: '0.625rem 1.25rem', borderRadius: '0.375rem', border: '2px solid #EF4444', background: deleting ? '#FEE2E2' : 'transparent', color: '#EF4444', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.9rem', transition: 'all 0.2s', boxShadow: 'none' }}>
                         {deleting ? 'Siliniyor…' : '🗑 İlanı Sil'}
                       </button>
                     </>
-                  ) : user ? (
-                    hasExistingConv ? (
-                      <Link
-                        href={`/mesajlar/${convId}`}
-                        className="btn btn-primary btn-lg"
-                        style={{ justifyContent: 'center' }}
-                      >
-                        💬 Konuşmaya Git
-                      </Link>
-                    ) : (
-                      <div style={{ fontSize: '0.82rem', color: '#6B7280', background: '#F9FAFB', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #E5E7EB' }}>
-                        Aşağıdan ilk mesajınızı gönderin ↓
-                      </div>
-                    )
                   ) : (
-                    <Link href="/auth/signin" className="btn btn-primary btn-lg" style={{ justifyContent: 'center' }}>
-                      Mesaj göndermek için giriş yap
-                    </Link>
+                    listing.isSold ? (
+                      <div className="alert alert-error" style={{ textAlign: 'center', margin: 0 }}>
+                        Bu ürün satılmıştır, yeni mesaj gönderilemez.
+                      </div>
+                    ) : (
+                      user ? (
+                        hasExistingConv ? (
+                          <Link
+                            href={`/mesajlar/${convId}`}
+                            className="btn btn-primary btn-lg"
+                            style={{ justifyContent: 'center' }}
+                          >
+                            💬 Konuşmaya Git
+                          </Link>
+                        ) : (
+                          <div style={{ fontSize: '0.82rem', color: '#6B7280', background: '#F9FAFB', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #E5E7EB' }}>
+                            Aşağıdan ilk mesajınızı gönderin ↓
+                          </div>
+                        )
+                      ) : (
+                        <Link href="/auth/signin" className="btn btn-primary btn-lg" style={{ justifyContent: 'center' }}>
+                          Mesaj göndermek için giriş yap
+                        </Link>
+                      )
+                    )
                   )}
                 </div>
               </div>
