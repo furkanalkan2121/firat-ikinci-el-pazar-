@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import Layout from '../../components/Layout';
-import { useAuth } from '../../context/AuthContext';
-import { getListing, updateListing, type Listing } from '../../lib/localStore';
+import Layout from '../../../components/Layout';
+import { useAuth } from '../../../context/AuthContext';
+import { getListing, updateListing, type Listing } from '../../../lib/localStore';
 
 const CATEGORIES = [
   { label: 'Kitap & Ders Materyali', emoji: '📚' },
