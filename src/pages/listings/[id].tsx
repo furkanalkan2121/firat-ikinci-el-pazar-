@@ -2,7 +2,14 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
-import { getListing, deleteListing, toggleListingSold, incrementListingViews, type Listing } from '../../lib/localStore';
+import {
+  getListing,
+  deleteListing,
+  toggleListingSold,
+  incrementListingViews,
+  toggleFeaturedListing,
+  type Listing,
+} from '../../lib/localStore';
 import { useAuth } from '../../context/AuthContext';
 import { sendMessage, makeConvId } from '../../lib/localMessages';
 import { isFavorite, toggleFavorite } from '../../lib/localFavorites';
@@ -366,13 +373,24 @@ export default function ListingDetail() {
                   {listing.title}
                 </h1>
 
-                {/* Fiyat */}
+                {/* Fiyat & Fiyat Geçmişi */}
                 {listing.price !== undefined ? (
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
-                    <span style={{ fontSize: '2rem', fontWeight: 900, color: listing.isSold ? '#9CA3AF' : '#8B1A1A', letterSpacing: '-0.02em', textDecoration: listing.isSold ? 'line-through' : 'none' }}>
-                      {listing.price.toLocaleString('tr-TR')}
-                    </span>
-                    <span style={{ fontWeight: 700, color: listing.isSold ? '#9CA3AF' : '#8B1A1A', fontSize: '1.1rem' }}>₺</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
+                      <span style={{ fontSize: '2rem', fontWeight: 900, color: listing.isSold ? '#9CA3AF' : '#8B1A1A', letterSpacing: '-0.02em', textDecoration: listing.isSold ? 'line-through' : 'none' }}>
+                        {listing.price.toLocaleString('tr-TR')}
+                      </span>
+                      <span style={{ fontWeight: 700, color: listing.isSold ? '#9CA3AF' : '#8B1A1A', fontSize: '1.1rem' }}>₺</span>
+                    </div>
+
+                    {/* 📉 Fiyat Değişim Geçmişi Rozeti */}
+                    {listing.priceHistory && listing.priceHistory.length > 0 && (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#ECFDF5', border: '1px solid #A7F3D0', padding: '0.3rem 0.6rem', borderRadius: '0.375rem', color: '#047857', fontSize: '0.78rem', fontWeight: 700, width: 'fit-content' }}>
+                        <span>📉 Fiyat Düşüşü:</span>
+                        <span style={{ textDecoration: 'line-through', opacity: 0.8 }}>{listing.priceHistory[0].price} ₺</span>
+                        <span>➡️ {listing.price} ₺!</span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <span className="badge badge-gray" style={{ fontSize: '0.85rem' }}>Fiyat belirtilmemiş</span>
@@ -430,6 +448,26 @@ export default function ListingDetail() {
                           {listing.isSold ? '🔄 Aktif Et' : '🏷️ Satıldı Yap'}
                         </button>
                       </div>
+
+                      {/* Vitrinde Öne Çıkar / İğnele Butonu */}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const isFeat = await toggleFeaturedListing(listing.id!);
+                          setListing(prev => prev ? { ...prev, isFeatured: isFeat } : null);
+                          showToast(isFeat ? 'İlanınız Vitrinde Öne Çıkarıldı! ⭐' : 'İlan vitrinden kaldırıldı.', 'success');
+                        }}
+                        className="btn btn-sm"
+                        style={{
+                          background: listing.isFeatured ? '#FEF3C7' : '#F3F4F6',
+                          color: listing.isFeatured ? '#B45309' : '#374151',
+                          border: listing.isFeatured ? '1px solid #FDE68A' : '1px solid #E5E7EB',
+                          fontWeight: 700, justifyContent: 'center',
+                        }}
+                      >
+                        {listing.isFeatured ? '⭐ Vitrinde Öne Çıkarıldı (İğnelendi)' : '📌 İlanı Vitrinde Öne Çıkar'}
+                      </button>
+
                       <button onClick={handleDelete} disabled={deleting}
                         style={{ padding: '0.625rem 1.25rem', borderRadius: '0.375rem', border: '2px solid #EF4444', background: deleting ? '#FEE2E2' : 'transparent', color: '#EF4444', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.9rem', transition: 'all 0.2s', boxShadow: 'none' }}>
                         {deleting ? 'Siliniyor…' : '🗑 İlanı Sil'}

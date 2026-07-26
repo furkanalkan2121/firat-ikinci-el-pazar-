@@ -9,6 +9,7 @@ export type Listing = {
   title: string;
   description?: string;
   price?: number;
+  priceHistory?: Array<{ price: number; date: string }>; // Fiyat değişim geçmişi
   images?: string[];
   ownerId?: string;
   category?: string;
@@ -16,6 +17,7 @@ export type Listing = {
   location?: string;   // FÜ Kampüs Teslimat Noktası
   isExchange?: boolean; // Sadece Takas / Değiş-tokuş ilanı mı?
   allowTrade?: boolean; // Hem Satılık Hem Takasa Uygundur
+  isFeatured?: boolean; // Vitrin / Öne Çıkarılan İlan
   createdAt?: string;
   isSold?: boolean;
   viewsCount?: number;
@@ -301,15 +303,45 @@ export function getUserListings(userId: string): Promise<Listing[]> {
   });
 }
 
-export function updateListing(id: string, data: Partial<Omit<Listing, 'id'>>): Promise<void> {
-  return new Promise((resolve, reject) => {
+export function updateListing(id: string, patch: Partial<Listing>): Promise<void> {
+  return new Promise(resolve => {
     const raw = localStorage.getItem(LISTINGS_KEY);
     const items: Listing[] = raw ? JSON.parse(raw) : [];
     const index = items.findIndex(l => l.id === id);
-    if (index === -1) return reject(new Error('İlan bulunamadı.'));
-    items[index] = { ...items[index], ...data };
-    localStorage.setItem(LISTINGS_KEY, JSON.stringify(items));
+    if (index !== -1) {
+      const current = items[index];
+      const history = current.priceHistory || [];
+
+      // Fiyat değiştiyse geçmişe ekle
+      if (patch.price !== undefined && patch.price !== current.price) {
+        if (current.price !== undefined) {
+          history.unshift({
+            price: current.price,
+            date: new Date().toISOString(),
+          });
+        }
+      }
+
+      items[index] = { ...current, ...patch, priceHistory: history };
+      localStorage.setItem(LISTINGS_KEY, JSON.stringify(items));
+    }
     resolve();
+  });
+}
+
+/** Vitrinde Öne Çıkar / İğnele */
+export function toggleFeaturedListing(id: string): Promise<boolean> {
+  return new Promise(resolve => {
+    const raw = localStorage.getItem(LISTINGS_KEY);
+    const items: Listing[] = raw ? JSON.parse(raw) : [];
+    const index = items.findIndex(l => l.id === id);
+    let newStatus = false;
+    if (index !== -1) {
+      newStatus = !items[index].isFeatured;
+      items[index].isFeatured = newStatus;
+      localStorage.setItem(LISTINGS_KEY, JSON.stringify(items));
+    }
+    resolve(newStatus);
   });
 }
 

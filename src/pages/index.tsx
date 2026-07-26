@@ -148,6 +148,11 @@ function ListingCard({ item }: { item: Listing }) {
         {/* Content */}
         <div style={{ padding: '1.125rem', display: 'flex', flexDirection: 'column', flex: 1, gap: '0.5rem' }}>
           <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            {item.isFeatured && (
+              <span className="badge" style={{ background: '#F59E0B', color: '#fff', fontSize: '0.68rem', fontWeight: 800 }}>
+                ⭐ Vitrin İlanı
+              </span>
+            )}
             <span className="badge badge-red">{item.category ?? 'İkinci El'}</span>
             {item.allowTrade && (
               <span className="badge" style={{ background: '#059669', color: '#fff', fontSize: '0.68rem' }}>
@@ -298,6 +303,10 @@ export default function Home() {
         return matchesSearch && matchesCategory && matchesDept && matchesLoc && matchesExchange && matchesMinPrice && matchesMaxPrice && matchesSold;
       })
       .sort((a, b) => {
+        // Vitrin İlanları (isFeatured) en üstte görünsün
+        if (a.isFeatured && !b.isFeatured) return -1;
+        if (!a.isFeatured && b.isFeatured) return 1;
+
         if (sortBy === 'price-asc') return (a.price ?? 0) - (b.price ?? 0);
         if (sortBy === 'price-desc') return (b.price ?? 0) - (a.price ?? 0);
         if (sortBy === 'oldest') return new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime();

@@ -48,9 +48,18 @@ export default function EditListing() {
   const [title,       setTitle]       = useState('');
   const [description, setDescription] = useState('');
   const [price,       setPrice]       = useState('');
+  const [category,    setCategory]    = useState('');
   const [department,  setDepartment]  = useState('Tüm Bölümler');
   const [isExchange,  setIsExchange]  = useState(false);
   const [allowTrade,  setAllowTrade]  = useState(false);
+  const [existingImgs,setExistingImgs]= useState<string[]>([]);
+  const [newFiles,    setNewFiles]    = useState<File[]>([]);
+  const [newPreviews, setNewPreviews] = useState<string[]>([]);
+  const [isSold,      setIsSold]      = useState(false);
+
+  const [message,     setMessage]     = useState('');
+  const [isError,     setIsError]     = useState(false);
+  const [submitting,  setSubmitting]  = useState(false);
 
   useEffect(() => {
     if (loading || !id) return;
