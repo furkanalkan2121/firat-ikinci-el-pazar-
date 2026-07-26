@@ -9,6 +9,7 @@ import {
   markConversationRead,
   type Message,
 } from '../../lib/localMessages';
+import { FU_CAMPUS_LOCATIONS } from '../../lib/localStore';
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -21,6 +22,29 @@ function formatTime(iso: string): string {
   return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+/** Resim Sıkıştırma (Canvas API) */
+async function compressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 800;
+      let { width, height } = img;
+      if (width > MAX) { height = Math.round((height * MAX) / width); width = MAX; }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return reject('Canvas hatası');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', 0.75));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject('Resim hatası'); };
+    img.src = url;
+  });
+}
+
 export default function ConversationPage() {
   const router  = useRouter();
   const rawId   = router.query.convId;
@@ -31,8 +55,13 @@ export default function ConversationPage() {
   const [newText,   setNewText]   = useState('');
   const [sending,   setSending]   = useState(false);
   const [pageReady, setPageReady] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState(FU_CAMPUS_LOCATIONS[1]);
+  const [selectedTime, setSelectedTime] = useState('14:00');
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadMsgs = () => {
     if (!convId) return;
@@ -52,19 +81,24 @@ export default function ConversationPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = (e: React.FormEvent) => {
+  const getReceiverInfo = () => {
+    const other = messages.find(m => m.senderId !== user?.uid) ??
+                  messages.find(m => m.receiverId !== user?.uid);
+    const receiverId    = other ? (other.senderId === user?.uid ? other.receiverId    : other.senderId)    : '';
+    const receiverEmail = other ? (other.senderId === user?.uid ? other.receiverEmail : other.senderEmail) : '';
+    return { receiverId, receiverEmail };
+  };
+
+  const handleSendText = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newText.trim() || !user || !convId || sending) return;
 
-    // Karşı tarafı mesajlardan çıkar
-    const other = messages.find(m => m.senderId !== user.uid) ??
-                  messages.find(m => m.receiverId !== user.uid);
-    const receiverId    = other ? (other.senderId === user.uid ? other.receiverId    : other.senderId)    : '';
-    const receiverEmail = other ? (other.senderId === user.uid ? other.receiverEmail : other.senderEmail) : '';
+    const { receiverId, receiverEmail } = getReceiverInfo();
     if (!receiverId) return;
 
     setSending(true);
     sendMessage({
+      conversationId: convId,
       listingId:     messages[0]?.listingId    ?? '',
       listingTitle:  messages[0]?.listingTitle ?? '',
       senderId:      user.uid,
@@ -79,10 +113,63 @@ export default function ConversationPage() {
     textareaRef.current?.focus();
   };
 
+  // Fotoğraf Gönderme
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user || !convId) return;
+
+    const { receiverId, receiverEmail } = getReceiverInfo();
+    if (!receiverId) return;
+
+    try {
+      setSending(true);
+      const dataUrl = await compressImage(file);
+      sendMessage({
+        conversationId: convId,
+        listingId:     messages[0]?.listingId    ?? '',
+        listingTitle:  messages[0]?.listingTitle ?? '',
+        senderId:      user.uid,
+        senderEmail:   user.email,
+        receiverId,
+        receiverEmail,
+        text: '📷 [Fotoğraf Gönderildi]',
+        imageDataUrl: dataUrl,
+      });
+      loadMsgs();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSending(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Buluşma Noktası Teklifi Gönderme
+  const handleSendLocationOffer = () => {
+    if (!user || !convId) return;
+    const { receiverId, receiverEmail } = getReceiverInfo();
+    if (!receiverId) return;
+
+    sendMessage({
+      conversationId: convId,
+      listingId:     messages[0]?.listingId    ?? '',
+      listingTitle:  messages[0]?.listingTitle ?? '',
+      senderId:      user.uid,
+      senderEmail:   user.email,
+      receiverId,
+      receiverEmail,
+      text: `📍 Buluşma Teklifi: ${selectedLocation} (Saat: ${selectedTime})`,
+      locationOffer: `${selectedLocation} (Saat: ${selectedTime})`,
+    });
+
+    setShowLocationModal(false);
+    loadMsgs();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend(e as any);
+      handleSendText(e);
     }
   };
 
@@ -96,58 +183,48 @@ export default function ConversationPage() {
     );
   }
 
-  // Sohbet meta bilgileri
-  const listingTitle    = messages[0]?.listingTitle ?? 'İlan';
-  const listingId       = messages[0]?.listingId    ?? '';
-  const otherMsg        = messages.find(m => m.senderId !== user!.uid);
-  const otherUserEmail  = otherMsg
-    ? (otherMsg.senderId === user!.uid ? otherMsg.receiverEmail : otherMsg.senderEmail)
-    : '—';
-
-  const isEmpty = messages.length === 0;
+  const other = messages.find(m => m.senderId !== user?.uid) ??
+                messages.find(m => m.receiverId !== user?.uid);
+  const otherEmail = other
+    ? (other.senderId === user?.uid ? other.receiverEmail : other.senderEmail)
+    : 'Kullanıcı';
+  const listingTitle = messages[0]?.listingTitle ?? 'İlan';
+  const listingId    = messages[0]?.listingId;
 
   return (
     <Layout>
-      <div style={{ background: 'linear-gradient(160deg,#F5F0EB 0%,#F0E8E8 100%)', minHeight: 'calc(100vh - 180px)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ maxWidth: 720, width: '100%', margin: '0 auto', flex: 1, display: 'flex', flexDirection: 'column', padding: '1.5rem 1.25rem 2rem' }}>
+      <div style={{ background: '#F9FAFB', minHeight: 'calc(100vh - 180px)', padding: '1.5rem 1.25rem 3rem' }}>
+        <div style={{ maxWidth: '760px', margin: '0 auto' }}>
 
-          {/* ── Üst bar ── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-            <Link href="/mesajlar"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: '50%', background: '#fff', boxShadow: 'var(--shadow-card)', color: '#374151', textDecoration: 'none', flexShrink: 0 }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-            </Link>
+          {/* Sohbet Kutusu Container */}
+          <div className="card" style={{ border: 'none', borderRadius: '1rem', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 240px)', minHeight: '520px' }}>
 
-            {/* Karşı kullanıcı */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flex: 1, background: '#fff', borderRadius: '0.875rem', padding: '0.625rem 1rem', boxShadow: 'var(--shadow-card)' }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,#8B1A1A,#C9A227)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '0.9rem', flexShrink: 0 }}>
-                {otherUserEmail[0]?.toUpperCase() ?? '?'}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: '0.875rem', color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{otherUserEmail}</div>
-                {listingId && (
-                  <Link href={`/listings/${listingId}`}
-                    style={{ fontSize: '0.72rem', color: '#8B1A1A', fontWeight: 600, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-                    📦 {listingTitle}
-                  </Link>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* ── Mesaj alanı ── */}
-          <div style={{ flex: 1, background: '#fff', borderRadius: '1rem', boxShadow: 'var(--shadow-card)', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 400 }}>
-
-            {/* Mesajlar */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {isEmpty && (
-                <div style={{ margin: 'auto', textAlign: 'center', color: '#9CA3AF', padding: '2rem' }}>
-                  <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>💬</div>
-                  <p style={{ fontWeight: 600, color: '#374151', marginBottom: '0.25rem' }}>Henüz mesaj yok</p>
-                  <p style={{ fontSize: '0.82rem' }}>İlk mesajı siz gönderin!</p>
+            {/* Üst Başlık (Header) */}
+            <div style={{ padding: '0.875rem 1.25rem', background: 'linear-gradient(135deg,#6B1010,#8B1A1A)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <Link href="/mesajlar" style={{ color: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+                </Link>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#C9A227', color: '#6B1010', fontWeight: 900, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {otherEmail[0]?.toUpperCase()}
                 </div>
-              )}
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: '0.95rem', lineHeight: 1.2 }}>{otherEmail.split('@')[0]}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>
+                    📦 {listingTitle}
+                  </div>
+                </div>
+              </div>
 
+              {listingId && (
+                <Link href={`/listings/${listingId}`} className="btn btn-gold btn-sm" style={{ fontSize: '0.75rem', padding: '0.3rem 0.75rem' }}>
+                  İlana Git →
+                </Link>
+              )}
+            </div>
+
+            {/* Mesaj Listesi */}
+            <div style={{ flex: 1, padding: '1.25rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.875rem', background: '#FAFAF9' }}>
               {messages.map((msg, i) => {
                 const isMe = msg.senderId === user!.uid;
                 const showDate =
@@ -160,7 +237,7 @@ export default function ConversationPage() {
                     {/* Tarih ayracı */}
                     {showDate && (
                       <div style={{ textAlign: 'center', margin: '0.5rem 0' }}>
-                        <span style={{ fontSize: '0.72rem', color: '#9CA3AF', background: '#F9FAFB', padding: '0.2rem 0.75rem', borderRadius: '999px' }}>
+                        <span style={{ fontSize: '0.72rem', color: '#9CA3AF', background: '#F3F4F6', padding: '0.2rem 0.75rem', borderRadius: '999px' }}>
                           {new Date(msg.createdAt).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}
                         </span>
                       </div>
@@ -173,25 +250,51 @@ export default function ConversationPage() {
                           {msg.senderEmail[0]?.toUpperCase()}
                         </div>
                       )}
-                      <div style={{ maxWidth: '72%' }}>
-                        <div
-                          style={{
-                            padding: '0.625rem 0.875rem',
-                            borderRadius: isMe ? '1rem 1rem 0.25rem 1rem' : '1rem 1rem 1rem 0.25rem',
-                            background: isMe
-                              ? 'linear-gradient(135deg,#8B1A1A,#A82020)'
-                              : '#F3F4F6',
-                            color: isMe ? '#fff' : '#111827',
-                            fontSize: '0.875rem',
-                            lineHeight: 1.55,
-                            wordBreak: 'break-word',
-                            boxShadow: isMe
-                              ? '0 2px 8px rgba(139,26,26,0.25)'
-                              : '0 1px 4px rgba(0,0,0,0.06)',
-                          }}
-                        >
-                          {msg.text}
-                        </div>
+                      <div style={{ maxWidth: '75%' }}>
+                        
+                        {/* Konum Teklifi Kartı Mesajı */}
+                        {msg.locationOffer ? (
+                          <div style={{
+                            padding: '0.875rem', borderRadius: '1rem',
+                            background: isMe ? '#FFFDF9' : '#fff',
+                            border: '1.5px solid #FDE68A', boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                          }}>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#92400E', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                              <span>📍 Buluşma Noktası Teklifi</span>
+                            </div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#111827', marginTop: '0.25rem' }}>
+                              {msg.locationOffer}
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: '#6B7280', marginTop: '0.35rem' }}>
+                              {isMe ? 'Buluşma teklifini gönderdiniz.' : 'Satıcı/Alıcı sizinle bu noktada buluşmak istiyor.'}
+                            </div>
+                          </div>
+                        ) : msg.imageDataUrl ? (
+                          /* Görsel Mesajı */
+                          <div style={{ borderRadius: '0.875rem', overflow: 'hidden', border: '1px solid #E5E7EB', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={msg.imageDataUrl} alt="Sohbet fotoğrafı" style={{ maxWidth: '100%', maxHeight: '260px', display: 'block', objectFit: 'cover' }} />
+                          </div>
+                        ) : (
+                          /* Normal Metin Mesajı */
+                          <div
+                            style={{
+                              padding: '0.625rem 0.875rem',
+                              borderRadius: isMe ? '1rem 1rem 0.25rem 1rem' : '1rem 1rem 1rem 0.25rem',
+                              background: isMe
+                                ? 'linear-gradient(135deg,#8B1A1A,#A82020)'
+                                : '#F3F4F6',
+                              color: isMe ? '#fff' : '#111827',
+                              fontSize: '0.875rem',
+                              lineHeight: 1.55,
+                              wordBreak: 'break-word',
+                              boxShadow: isMe ? '0 2px 8px rgba(139,26,26,0.25)' : '0 1px 4px rgba(0,0,0,0.06)',
+                            }}
+                          >
+                            {msg.text}
+                          </div>
+                        )}
+
                         <div style={{ fontSize: '0.65rem', color: '#9CA3AF', marginTop: '0.25rem', textAlign: isMe ? 'right' : 'left', paddingInline: '0.25rem' }}>
                           {formatTime(msg.createdAt)}
                           {isMe && <span style={{ marginLeft: '0.3rem' }}>✓</span>}
@@ -204,31 +307,72 @@ export default function ConversationPage() {
               <div ref={bottomRef} />
             </div>
 
-            {/* Mesaj yazma alanı */}
-            <div style={{ borderTop: '1px solid #F3F4F6', padding: '0.875rem 1rem' }}>
-              <form onSubmit={handleSend} style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-end' }}>
+            {/* Alt Mesaj & Dosya/Konum Gönderme Alanı */}
+            <div style={{ borderTop: '1px solid #F3F4F6', padding: '0.75rem 1rem', background: '#fff' }}>
+              <form onSubmit={handleSendText} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                
+                {/* Gizli Dosya İnputu */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  style={{ display: 'none' }}
+                />
+
+                {/* Fotoğraf Yükle Butonu */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Fotoğraf Gönder"
+                  style={{
+                    background: '#F3F4F6', border: 'none', color: '#4B5563',
+                    width: 38, height: 38, borderRadius: '50%', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem',
+                    flexShrink: 0, boxShadow: 'none',
+                  }}
+                >
+                  🖼️
+                </button>
+
+                {/* Buluşma Teklif Et Butonu */}
+                <button
+                  type="button"
+                  onClick={() => setShowLocationModal(true)}
+                  title="Buluşma Noktası Teklif Et"
+                  style={{
+                    background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E',
+                    width: 38, height: 38, borderRadius: '50%', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem',
+                    flexShrink: 0, boxShadow: 'none',
+                  }}
+                >
+                  📍
+                </button>
+
                 <textarea
                   ref={textareaRef}
                   value={newText}
                   onChange={e => setNewText(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Mesaj yaz… (Enter = gönder, Shift+Enter = yeni satır)"
+                  placeholder="Mesaj yaz… (Enter = gönder)"
                   rows={1}
                   maxLength={1000}
                   style={{
                     flex: 1, resize: 'none', border: '1.5px solid #E5E7EB', borderRadius: '0.75rem',
-                    padding: '0.625rem 0.875rem', fontFamily: 'inherit', fontSize: '0.875rem',
+                    padding: '0.6rem 0.875rem', fontFamily: 'inherit', fontSize: '0.875rem',
                     lineHeight: 1.5, outline: 'none', transition: 'border-color 0.2s',
-                    maxHeight: 120, overflowY: 'auto',
+                    maxHeight: 100, overflowY: 'auto',
                   }}
                   onFocus={e  => (e.target.style.borderColor = '#8B1A1A')}
                   onBlur={e   => (e.target.style.borderColor = '#E5E7EB')}
                 />
+
                 <button
                   type="submit"
                   disabled={sending || !newText.trim()}
                   style={{
-                    width: 42, height: 42, borderRadius: '50%', flexShrink: 0,
+                    width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
                     background: newText.trim() ? 'linear-gradient(135deg,#8B1A1A,#A82020)' : '#E5E7EB',
                     color: newText.trim() ? '#fff' : '#9CA3AF', border: 'none', cursor: newText.trim() ? 'pointer' : 'default',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -245,6 +389,78 @@ export default function ConversationPage() {
 
         </div>
       </div>
+
+      {/* Buluşma Noktası Teklifi Modalı */}
+      {showLocationModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '1rem',
+          }}
+          onClick={() => setShowLocationModal(false)}
+        >
+          <div
+            className="card animate-slide-up"
+            onClick={e => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: '440px', padding: '1.75rem', border: 'none' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <h2 style={{ fontWeight: 800, fontSize: '1.1rem', color: '#111827', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span>📍</span> Buluşma Noktası Teklifi
+              </h2>
+              <button onClick={() => setShowLocationModal(false)} style={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: '1.2rem', cursor: 'pointer', boxShadow: 'none' }}>✕</button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label className="form-label">FÜ Kampüs Teslimat Noktası Seçin</label>
+                <select
+                  className="form-input"
+                  value={selectedLocation}
+                  onChange={e => setSelectedLocation(e.target.value)}
+                  style={{ fontFamily: 'inherit' }}
+                >
+                  {FU_CAMPUS_LOCATIONS.filter(l => l !== 'Tüm Kampüs Noktaları').map(loc => (
+                    <option key={loc} value={loc}>{loc}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="form-label">Buluşma Saati</label>
+                <input
+                  type="time"
+                  className="form-input"
+                  value={selectedTime}
+                  onChange={e => setSelectedTime(e.target.value)}
+                  style={{ fontFamily: 'inherit' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowLocationModal(false)}
+                  className="btn btn-outline"
+                  style={{ flex: 1 }}
+                >
+                  İptal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendLocationOffer}
+                  className="btn btn-gold"
+                  style={{ flex: 1 }}
+                >
+                  Teklifi Gönder 📍
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

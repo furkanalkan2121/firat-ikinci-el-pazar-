@@ -13,6 +13,8 @@ export type Message = {
   receiverId: string;
   receiverEmail: string;
   text: string;
+  imageDataUrl?: string;     // Sohbet içi fotoğraf
+  locationOffer?: string;    // Sohbet içi buluşma noktası teklifi
   createdAt: string;
   read: boolean;
 };
@@ -46,20 +48,21 @@ function saveAll(messages: Message[]): void {
 }
 
 export function sendMessage(params: {
+  conversationId: string;
   listingId: string;
   listingTitle: string;
-  listingImage?: string;
   senderId: string;
   senderEmail: string;
   receiverId: string;
   receiverEmail: string;
   text: string;
+  imageDataUrl?: string;
+  locationOffer?: string;
 }): Message {
   const messages = getAll();
-  const convId = makeConvId(params.listingId, params.senderId, params.receiverId);
   const msg: Message = {
     id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    conversationId: convId,
+    conversationId: params.conversationId,
     listingId: params.listingId,
     listingTitle: params.listingTitle,
     senderId: params.senderId,
@@ -67,6 +70,8 @@ export function sendMessage(params: {
     receiverId: params.receiverId,
     receiverEmail: params.receiverEmail,
     text: params.text,
+    imageDataUrl: params.imageDataUrl,
+    locationOffer: params.locationOffer,
     createdAt: new Date().toISOString(),
     read: false,
   };
