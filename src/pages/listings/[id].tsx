@@ -4,9 +4,10 @@ import Link from 'next/link';
 import Layout from '../../components/Layout';
 import { getListing, deleteListing, toggleListingSold, type Listing } from '../../lib/localStore';
 import { useAuth } from '../../context/AuthContext';
-import { sendMessage, makeConvId, getUserConversations } from '../../lib/localMessages';
+import { sendMessage, makeConvId } from '../../lib/localMessages';
 import { isFavorite, toggleFavorite } from '../../lib/localFavorites';
 import { useToast } from '../../context/ToastContext';
+import { getSellerReviews, addSellerReview, getSellerAverageRating, type Review } from '../../lib/localReviews';
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -37,9 +38,23 @@ export default function ListingDetail() {
   // Lightbox Galeri Durumu
   const [lightboxOpen,     setLightboxOpen]     = useState(false);
 
+  // Satıcı Yorumları Durumu
+  const [reviews,          setReviews]          = useState<Review[]>([]);
+  const [sellerRating,     setSellerRating]     = useState<{ average: number; count: number }>({ average: 0, count: 0 });
+  const [ratingInput,      setRatingInput]      = useState(5);
+  const [commentInput,     setCommentInput]     = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+
   useEffect(() => {
     if (!id) return;
-    getListing(id).then(l => { setListing(l); setPageLoading(false); });
+    getListing(id).then(l => {
+      setListing(l);
+      setPageLoading(false);
+      if (l?.ownerId) {
+        setReviews(getSellerReviews(l.ownerId));
+        setSellerRating(getSellerAverageRating(l.ownerId));
+      }
+    });
   }, [id]);
 
   useEffect(() => {
@@ -109,6 +124,37 @@ export default function ListingDetail() {
     }
   };
 
+  const handleCopyLink = () => {
+    if (typeof window !== 'undefined') {
+      navigator.clipboard.writeText(window.location.href);
+      showToast('İlan bağlantısı panoya kopyalandı! 🔗', 'success');
+    }
+  };
+
+  const handleAddReview = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      showToast('Yorum yapmak için giriş yapmalısınız.', 'info');
+      return;
+    }
+    if (!commentInput.trim() || !listing?.ownerId) return;
+
+    setSubmittingReview(true);
+    const newRev = addSellerReview({
+      sellerId: listing.ownerId,
+      reviewerId: user.uid,
+      reviewerEmail: user.email,
+      rating: ratingInput,
+      comment: commentInput.trim(),
+    });
+
+    setReviews(prev => [newRev, ...prev]);
+    setSellerRating(getSellerAverageRating(listing.ownerId));
+    setCommentInput('');
+    setSubmittingReview(false);
+    showToast('Değerlendirmeniz yayınlandı! ⭐', 'success');
+  };
+
   if (pageLoading) {
     return (
       <Layout>
@@ -137,17 +183,42 @@ export default function ListingDetail() {
     : '';
 
   const images = listing.images && listing.images.length > 0 ? listing.images : [];
+  const shareText = encodeURIComponent(`Fırat İkinci El'de bulduğum ilana göz atın: ${listing.title}`);
+  const whatsappUrl = `https://api.whatsapp.com/send?text=${shareText}%20${typeof window !== 'undefined' ? encodeURIComponent(window.location.href) : ''}`;
 
   return (
     <Layout>
       <div style={{ background: 'linear-gradient(160deg, #F5F0EB 0%, #F0E8E8 100%)', padding: '2rem 1.25rem 4rem', minHeight: 'calc(100vh - 180px)' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto' }}>
 
-          {/* Geri */}
-          <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#6B7280', fontSize: '0.83rem', textDecoration: 'none', marginBottom: '1.5rem' }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
-            Tüm İlanlar
-          </Link>
+          {/* Üst Bar: Geri ve Paylaş Butonları */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#6B7280', fontSize: '0.83rem', textDecoration: 'none' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+              Tüm İlanlar
+            </Link>
+
+            {/* Paylaş Butonları */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="btn btn-outline btn-sm"
+                style={{ fontSize: '0.78rem', background: '#fff', gap: '0.3rem' }}
+              >
+                🔗 Bağlantıyı Kopyala
+              </button>
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-sm"
+                style={{ fontSize: '0.78rem', background: '#25D366', color: '#fff', textDecoration: 'none', border: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+              >
+                💬 WhatsApp
+              </a>
+            </div>
+          </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
 
@@ -169,7 +240,6 @@ export default function ListingDetail() {
                         alt={listing.title}
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
-                      {/* Büyüteç İkonu İpucu */}
                       <div style={{
                         position: 'absolute', bottom: '0.75rem', right: '0.75rem',
                         background: 'rgba(0,0,0,0.65)', color: '#fff', padding: '0.3rem 0.65rem',
@@ -247,16 +317,23 @@ export default function ListingDetail() {
                   <span className="badge badge-gray" style={{ fontSize: '0.85rem' }}>Fiyat belirtilmemiş</span>
                 )}
 
-                {/* Satıcı */}
+                {/* Satıcı Bilgisi ve Ortalama Puanı */}
                 <div style={{ padding: '0.875rem', background: '#F9FAFB', borderRadius: '0.5rem', border: '1px solid #F3F4F6' }}>
-                  <p style={{ fontSize: '0.72rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.3rem' }}>Satıcı</p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#8B1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '0.75rem', flexShrink: 0 }}>
-                      {(listing.ownerId ?? '?')[0].toUpperCase()}
+                  <p style={{ fontSize: '0.72rem', color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.3rem' }}>Satıcı Bilgisi</p>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#8B1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: '0.75rem', flexShrink: 0 }}>
+                        {(listing.ownerId ?? '?')[0].toUpperCase()}
+                      </div>
+                      <span style={{ fontSize: '0.85rem', color: '#374151', fontWeight: 500 }}>
+                        {isOwner ? 'Siz' : (listing.ownerId?.startsWith('demo') ? 'demo@firat.edu.tr' : listing.ownerId)}
+                      </span>
                     </div>
-                    <span style={{ fontSize: '0.85rem', color: '#374151', fontWeight: 500 }}>
-                      {isOwner ? 'Siz' : (listing.ownerId?.startsWith('demo') ? 'demo@firat.edu.tr' : listing.ownerId)}
-                    </span>
+                    {/* Yıldız Puanı */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.8rem', fontWeight: 700, color: '#D97706' }}>
+                      <span>⭐ {sellerRating.count > 0 ? sellerRating.average : 'Yeni'}</span>
+                      <span style={{ color: '#9CA3AF', fontWeight: 400, fontSize: '0.72rem' }}>({sellerRating.count})</span>
+                    </div>
                   </div>
                 </div>
 
@@ -321,7 +398,7 @@ export default function ListingDetail() {
             {listing.description && (
               <div className="card" style={{ padding: '1.5rem', border: 'none' }}>
                 <h2 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#374151', marginBottom: '0.75rem' }}>İlan Açıklaması</h2>
-                <p style={{ fontSize: '0.9rem', color: '#4B5563', lineHeight: 1.7, whitespace: 'pre-line' }}>
+                <p style={{ fontSize: '0.9rem', color: '#4B5563', lineHeight: 1.7, whiteSpace: 'pre-line' }}>
                   {listing.description}
                 </p>
               </div>
@@ -364,11 +441,94 @@ export default function ListingDetail() {
               </div>
             )}
 
+            {/* ── Satıcı Değerlendirmeleri ve Yorum Yapma Modülü ── */}
+            <div className="card" style={{ padding: '1.5rem', border: 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <h2 style={{ fontSize: '1rem', fontWeight: 800, color: '#111827', margin: 0 }}>
+                  Satıcı Değerlendirmeleri ⭐ ({reviews.length})
+                </h2>
+                {sellerRating.count > 0 && (
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#D97706', background: '#FEF3C7', padding: '0.2rem 0.65rem', borderRadius: '999px' }}>
+                    Ortalama: {sellerRating.average} / 5
+                  </span>
+                )}
+              </div>
+
+              {/* Yorum Yapma Formu */}
+              {!isOwner && user && (
+                <form onSubmit={handleAddReview} style={{ background: '#F9FAFB', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.5rem', border: '1px solid #E5E7EB' }}>
+                  <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#374151', marginBottom: '0.5rem' }}>Satıcıyı Değerlendir</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#6B7280', fontWeight: 600 }}>Puanınız:</span>
+                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                      {[1, 2, 3, 4, 5].map(star => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setRatingInput(star)}
+                          style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            fontSize: '1.25rem', padding: '0.1rem', boxShadow: 'none',
+                            color: star <= ratingInput ? '#F59E0B' : '#D1D5DB',
+                          }}
+                        >
+                          ★
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="Satıcı hakkındaki deneyiminizi yazın..."
+                      value={commentInput}
+                      onChange={e => setCommentInput(e.target.value)}
+                      required
+                      maxLength={300}
+                      style={{ fontSize: '0.85rem' }}
+                    />
+                    <button type="submit" disabled={submittingReview || !commentInput.trim()} className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}>
+                      Yayınla
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Var Olan Yorumlar Listesi */}
+              {reviews.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '1.5rem', color: '#9CA3AF', fontSize: '0.85rem' }}>
+                  Henüz bu satıcı için değerlendirme yapılmamış. İlk yorumu siz yazabilirsiniz!
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                  {reviews.map(rev => (
+                    <div key={rev.id} style={{ padding: '0.875rem', background: '#F9FAFB', borderRadius: '0.5rem', border: '1px solid #F3F4F6' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.82rem', color: '#111827' }}>
+                            {rev.reviewerEmail.split('@')[0]}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', color: '#F59E0B' }}>
+                            {'★'.repeat(rev.rating)}{'☆'.repeat(5 - rev.rating)}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '0.7rem', color: '#9CA3AF' }}>{timeAgo(rev.createdAt)}</span>
+                      </div>
+                      <p style={{ fontSize: '0.83rem', color: '#4B5563', margin: 0, lineHeight: 1.5 }}>
+                        {rev.comment}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       </div>
 
-      {/* ── Lightbox Galeri Modal (Tam Ekran Görsel) ── */}
+      {/* ── Lightbox Galeri Modal ── */}
       {lightboxOpen && images.length > 0 && (
         <div
           style={{
@@ -379,7 +539,6 @@ export default function ListingDetail() {
           }}
           onClick={() => setLightboxOpen(false)}
         >
-          {/* Kapat butonu */}
           <button
             onClick={() => setLightboxOpen(false)}
             style={{
@@ -395,7 +554,6 @@ export default function ListingDetail() {
             ✕
           </button>
 
-          {/* Görsel Sayacı */}
           <div style={{
             position: 'absolute', top: '1.75rem', left: '1.5rem',
             color: 'rgba(255,255,255,0.85)', fontSize: '0.9rem', fontWeight: 600
@@ -403,7 +561,6 @@ export default function ListingDetail() {
             {imgIndex + 1} / {images.length}
           </div>
 
-          {/* Büyük Görsel */}
           <div
             onClick={e => e.stopPropagation()}
             style={{ position: 'relative', maxWidth: '90vw', maxHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -416,7 +573,6 @@ export default function ListingDetail() {
             />
           </div>
 
-          {/* Önceki / Sonraki Butonları */}
           {images.length > 1 && (
             <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: '1.5rem', marginTop: '1.5rem' }}>
               <button

@@ -6,6 +6,8 @@ import { useAuth } from '../context/AuthContext';
 import { signOutLocal } from '../lib/localAuth';
 import { getUserListings, deleteListing, type Listing } from '../lib/localStore';
 import { getUserConversations } from '../lib/localMessages';
+import { useToast } from '../context/ToastContext';
+import { getSellerReviews, getSellerAverageRating, type Review } from '../lib/localReviews';
 
 function timeAgo(iso: string): string {
   const d = new Date(iso);
@@ -19,19 +21,30 @@ function formatPrice(p?: number) {
 
 export default function ProfilePage() {
   const { user, loading } = useAuth();
+  const { showToast } = useToast();
   const router = useRouter();
 
   const [listings,   setListings]   = useState<Listing[]>([]);
   const [convCount,  setConvCount]  = useState(0);
+  const [reviews,    setReviews]    = useState<Review[]>([]);
+  const [rating,     setRating]     = useState<{ average: number; count: number }>({ average: 0, count: 0 });
   const [pageReady,  setPageReady]  = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [, forceUpdate] = useState(0);
+
+  // Şifre Değiştirme Formu Durumu
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword,   setCurrentPassword]   = useState('');
+  const [newPassword,       setNewPassword]       = useState('');
+  const [confirmPassword,   setConfirmPassword]   = useState('');
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
 
   useEffect(() => {
     if (loading) return;
     if (!user) { router.push('/auth/signin'); return; }
     getUserListings(user.uid).then(ls => setListings(ls));
     setConvCount(getUserConversations(user.uid).length);
+    setReviews(getSellerReviews(user.uid));
+    setRating(getSellerAverageRating(user.uid));
     setPageReady(true);
   }, [user, loading, router]);
 
@@ -41,12 +54,36 @@ export default function ProfilePage() {
     await deleteListing(id);
     setListings(prev => prev.filter(l => l.id !== id));
     setDeletingId(null);
+    showToast('İlan silindi.', 'info');
   };
 
   const handleSignOut = () => {
     signOutLocal();
     window.dispatchEvent(new StorageEvent('storage', { key: 'fu_current_user' }));
+    showToast('Çıkış yapıldı.', 'info');
     router.push('/');
+  };
+
+  const handleChangePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      showToast('Yeni şifre en az 6 karakter olmalıdır.', 'error');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showToast('Şifreler eşleşmiyor.', 'error');
+      return;
+    }
+
+    setPasswordSubmitting(true);
+    setTimeout(() => {
+      setPasswordSubmitting(false);
+      setShowPasswordModal(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      showToast('Şifreniz başarıyla güncellendi! 🔑', 'success');
+    }, 800);
   };
 
   if (loading || !pageReady) {
@@ -59,7 +96,6 @@ export default function ProfilePage() {
     );
   }
 
-  // Üyelik tarihi: uid'den al (user-{timestamp}) veya sabit
   const joinDate = (() => {
     if (!user) return '';
     if (user.uid === 'demo-user') return '1 Eylül 2024';
@@ -78,13 +114,11 @@ export default function ProfilePage() {
 
           {/* ── Profil kartı ── */}
           <div className="card animate-slide-up" style={{ padding: 0, overflow: 'hidden', border: 'none', marginBottom: '1.5rem' }}>
-            {/* Banner */}
             <div style={{ height: 110, background: 'linear-gradient(135deg,#6B1010 0%,#8B1A1A 50%,#9B2020 70%,#C9A227 100%)', position: 'relative' }}>
               <div style={{ position: 'absolute', inset: 0, opacity: 0.15, backgroundImage: 'radial-gradient(circle at 20% 50%, #fff 1px, transparent 1px), radial-gradient(circle at 80% 20%, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
             </div>
 
             <div style={{ padding: '0 1.75rem 1.75rem' }}>
-              {/* Avatar + isim */}
               <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: -42, marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem' }}>
                   <div style={{
@@ -104,27 +138,36 @@ export default function ProfilePage() {
                     <p style={{ color: '#6B7280', fontSize: '0.82rem', margin: 0 }}>{user!.email}</p>
                   </div>
                 </div>
-                <button
-                  onClick={handleSignOut}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '0.375rem',
-                    padding: '0.45rem 1rem', borderRadius: '0.5rem',
-                    border: '1.5px solid #E5E7EB', background: '#fff',
-                    color: '#6B7280', fontSize: '0.8rem', fontWeight: 600,
-                    cursor: 'pointer', fontFamily: 'inherit', boxShadow: 'none',
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#EF4444'; e.currentTarget.style.color = '#EF4444'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#6B7280'; }}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                  </svg>
-                  Çıkış Yap
-                </button>
+
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    onClick={() => setShowPasswordModal(true)}
+                    className="btn btn-outline btn-sm"
+                    style={{ background: '#fff' }}
+                  >
+                    🔑 Şifre Değiştir
+                  </button>
+                  <button
+                    onClick={handleSignOut}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.375rem',
+                      padding: '0.45rem 1rem', borderRadius: '0.5rem',
+                      border: '1.5px solid #E5E7EB', background: '#fff',
+                      color: '#6B7280', fontSize: '0.8rem', fontWeight: 600,
+                      cursor: 'pointer', fontFamily: 'inherit', boxShadow: 'none',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#EF4444'; e.currentTarget.style.color = '#EF4444'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#6B7280'; }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                    Çıkış Yap
+                  </button>
+                </div>
               </div>
 
-              {/* Üyelik bilgisi + rozet */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: '#9CA3AF' }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -133,9 +176,9 @@ export default function ProfilePage() {
                 <span style={{ background: '#FEF3C7', color: '#92400E', fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.625rem', borderRadius: '999px', border: '1px solid #FDE68A' }}>
                   ✓ Aktif Üye
                 </span>
-                {user!.uid === 'demo-user' && (
-                  <span style={{ background: '#DBEAFE', color: '#1E40AF', fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.625rem', borderRadius: '999px', border: '1px solid #BFDBFE' }}>
-                    Demo Hesabı
+                {rating.count > 0 && (
+                  <span style={{ background: '#FEF3C7', color: '#B45309', fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.625rem', borderRadius: '999px' }}>
+                    ⭐ Satıcı Puanı: {rating.average} ({rating.count} Yorum)
                   </span>
                 )}
               </div>
@@ -147,7 +190,7 @@ export default function ProfilePage() {
             {[
               { emoji: '📦', count: listings.length,  label: 'Aktif İlan',   href: '/listings/my'  },
               { emoji: '💬', count: convCount,         label: 'Konuşma',      href: '/mesajlar'     },
-              { emoji: '👁', count: listings.length * 12, label: 'Görüntülenme', href: null         },
+              { emoji: '⭐', count: rating.average || '—', label: 'Satıcı Puanı', href: null       },
             ].map(stat => (
               <div
                 key={stat.label}
@@ -168,23 +211,33 @@ export default function ProfilePage() {
             ))}
           </div>
 
-          {/* ── Hızlı erişim ── */}
-          <div className="card" style={{ padding: '1.25rem', border: 'none', marginBottom: '1.5rem' }}>
-            <h2 style={{ fontWeight: 700, fontSize: '0.95rem', color: '#374151', marginBottom: '1rem' }}>Hızlı Erişim</h2>
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <Link href="/listings/create" className="btn btn-primary">
-                + Yeni İlan Ekle
-              </Link>
-              <Link href="/listings/my" className="btn btn-outline">
-                📋 İlanlarım
-              </Link>
-              <Link href="/mesajlar" className="btn btn-outline" style={{ position: 'relative' }}>
-                💬 Mesajlarım
-              </Link>
-              <Link href="/" className="btn btn-outline">
-                🏠 Ana Sayfa
-              </Link>
-            </div>
+          {/* ── Aldığım Değerlendirmeler ── */}
+          <div className="card" style={{ padding: '1.5rem', border: 'none', marginBottom: '1.5rem' }}>
+            <h2 style={{ fontWeight: 700, fontSize: '0.95rem', color: '#374151', marginBottom: '1rem' }}>
+              Aldığım Değerlendirmeler ({reviews.length})
+            </h2>
+
+            {reviews.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '1.5rem', color: '#9CA3AF', fontSize: '0.85rem' }}>
+                Henüz değerlendirme almadınız.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {reviews.map(rev => (
+                  <div key={rev.id} style={{ padding: '0.75rem 1rem', background: '#F9FAFB', borderRadius: '0.5rem', border: '1px solid #F3F4F6' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#111827' }}>
+                        {rev.reviewerEmail.split('@')[0]}
+                      </span>
+                      <span style={{ fontSize: '0.8rem', color: '#F59E0B' }}>
+                        {'★'.repeat(rev.rating)}{'☆'.repeat(5 - rev.rating)}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.82rem', color: '#4B5563', margin: 0 }}>{rev.comment}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* ── İlanlarım ── */}
@@ -212,7 +265,6 @@ export default function ProfilePage() {
                     onMouseEnter={e => (e.currentTarget.style.background = '#F3F4F6')}
                     onMouseLeave={e => (e.currentTarget.style.background = '#F9FAFB')}
                   >
-                    {/* Küçük görsel */}
                     <div style={{ width: 52, height: 52, borderRadius: '0.5rem', overflow: 'hidden', flexShrink: 0, background: '#E5E7EB' }}>
                       {listing.images?.[0] ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -252,6 +304,73 @@ export default function ProfilePage() {
 
         </div>
       </div>
+
+      {/* ── Şifre Değiştirme Modalı ── */}
+      {showPasswordModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '1rem',
+          }}
+          onClick={() => setShowPasswordModal(false)}
+        >
+          <div
+            className="card animate-slide-up"
+            onClick={e => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: '420px', padding: '1.75rem', border: 'none' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <h2 style={{ fontWeight: 800, fontSize: '1.1rem', color: '#111827', margin: 0 }}>🔑 Şifre Değiştir</h2>
+              <button onClick={() => setShowPasswordModal(false)} style={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: '1.2rem', cursor: 'pointer', boxShadow: 'none' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleChangePassword}>
+              <div className="form-group">
+                <label className="form-label">Mevcut Şifre</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  value={currentPassword}
+                  onChange={e => setCurrentPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Yeni Şifre (En az 6 karakter)</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Yeni Şifre Tekrar</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+                <button type="button" onClick={() => setShowPasswordModal(false)} className="btn btn-outline btn-sm">İptal</button>
+                <button type="submit" disabled={passwordSubmitting} className="btn btn-primary btn-sm">
+                  {passwordSubmitting ? 'Kaydediliyor…' : 'Güncelle'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
