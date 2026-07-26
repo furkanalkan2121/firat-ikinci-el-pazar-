@@ -18,7 +18,7 @@ export default function Signin() {
     setLoading(true);
     setMessage('');
     try {
-      signInLocal(email, password);
+      await signInLocal(email, password);
       // AuthContext storage event'i dinleyerek güncellenecek
       window.dispatchEvent(new StorageEvent('storage', { key: 'fu_current_user' }));
       setIsError(false);

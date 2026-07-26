@@ -268,6 +268,65 @@ export default function ProfilePage() {
             )}
           </div>
 
+          {/* ── Veri Dışa Aktarma (JSON / CSV) ── */}
+          <div className="card" style={{ padding: '1.5rem', border: 'none', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#111827', margin: 0 }}>📥 Veri Dışa Aktarma</h3>
+                <p style={{ fontSize: '0.8rem', color: '#6B7280', marginTop: '0.2rem', margin: 0 }}>
+                  Yayınladığınız tüm ilanları bilgisayarınıza JSON veya CSV formatında indirin.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  onClick={() => {
+                    if (listings.length === 0) { showToast('İndirilecek ilan bulunamadı.', 'info'); return; }
+                    const jsonStr = JSON.stringify(listings, null, 2);
+                    const blob = new Blob([jsonStr], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `firat_ilanlarim_${Date.now()}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showToast('İlanlar JSON formatında indirildi! 📥', 'success');
+                  }}
+                  className="btn btn-outline btn-sm"
+                  style={{ background: '#fff' }}
+                >
+                  📄 JSON İndir
+                </button>
+                <button
+                  onClick={() => {
+                    if (listings.length === 0) { showToast('İndirilecek ilan bulunamadı.', 'info'); return; }
+                    const headers = ['id', 'title', 'price', 'category', 'isSold', 'createdAt'];
+                    const rows = listings.map(l => [
+                      l.id || '',
+                      `"${(l.title || '').replace(/"/g, '""')}"`,
+                      l.price !== undefined ? l.price : '',
+                      `"${l.category || ''}"`,
+                      l.isSold ? 'Evet' : 'Hayır',
+                      l.createdAt || '',
+                    ]);
+                    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `firat_ilanlarim_${Date.now()}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showToast('İlanlar CSV formatında indirildi! 📊', 'success');
+                  }}
+                  className="btn btn-outline btn-sm"
+                  style={{ background: '#fff' }}
+                >
+                  📊 CSV İndir
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* ── Tehlikeli Bölge (Hesap Silme) ── */}
           <div className="card" style={{ padding: '1.5rem', border: '1px solid #FECACA', background: '#FEF2F2', marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>

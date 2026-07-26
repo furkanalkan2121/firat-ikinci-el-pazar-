@@ -33,7 +33,7 @@ export default function Signup() {
     setLoading(true);
     setMessage('');
     try {
-      signUpLocal(email, password);
+      await signUpLocal(email, password);
       window.dispatchEvent(new StorageEvent('storage', { key: 'fu_current_user' }));
       setIsError(false);
       setMessage('Kayıt başarılı! Yönlendiriliyorsunuz…');

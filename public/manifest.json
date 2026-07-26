@@ -1,0 +1,16 @@
+{
+  "name": "Fırat Üniversitesi İkinci El Platformu",
+  "short_name": "FÜ İkinci El",
+  "description": "Fırat Üniversitesi öğrenci ve personeline özel ikinci el alım satım platformu.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F5F0EB",
+  "theme_color": "#8B1A1A",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
