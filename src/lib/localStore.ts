@@ -14,6 +14,7 @@ export type Listing = {
   category?: string;
   createdAt?: string;
   isSold?: boolean;
+  viewsCount?: number;
 };
 
 const LISTINGS_KEY = 'fu_listings';
@@ -145,15 +146,58 @@ export function getListings(): Promise<Listing[]> {
   });
 }
 
+export function getUserMonthlyListingCount(userId: string): number {
+  if (typeof window === 'undefined' || !userId) return 0;
+  const raw = localStorage.getItem(LISTINGS_KEY);
+  const items: Listing[] = raw ? JSON.parse(raw) : [];
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  return items.filter(l => {
+    if (l.ownerId !== userId || !l.createdAt) return false;
+    const d = new Date(l.createdAt);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  }).length;
+}
+
 export function addListing(listing: Omit<Listing, 'id' | 'createdAt'>): Promise<string> {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     initFakeData();
+    if (listing.ownerId) {
+      const monthlyCount = getUserMonthlyListingCount(listing.ownerId);
+      if (monthlyCount >= 10) {
+        return reject(new Error('Aylık ilan oluşturma limitine ulaştınız (Max 10 ilan/ay).'));
+      }
+    }
     const raw = localStorage.getItem(LISTINGS_KEY);
     const items: Listing[] = raw ? JSON.parse(raw) : [];
     const id = `listing-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    items.unshift({ ...listing, id, createdAt: new Date().toISOString() });
+    items.unshift({ ...listing, id, viewsCount: 0, createdAt: new Date().toISOString() });
     localStorage.setItem(LISTINGS_KEY, JSON.stringify(items));
     resolve(id);
+  });
+}
+
+export function incrementListingViews(id: string): void {
+  if (typeof window === 'undefined' || !id) return;
+  const raw = localStorage.getItem(LISTINGS_KEY);
+  const items: Listing[] = raw ? JSON.parse(raw) : [];
+  const index = items.findIndex(l => l.id === id);
+  if (index !== -1) {
+    items[index].viewsCount = (items[index].viewsCount || 0) + 1;
+    localStorage.setItem(LISTINGS_KEY, JSON.stringify(items));
+  }
+}
+
+export function deleteUserAndListings(userId: string): Promise<void> {
+  return new Promise(resolve => {
+    if (typeof window === 'undefined' || !userId) return resolve();
+    const raw = localStorage.getItem(LISTINGS_KEY);
+    const items: Listing[] = raw ? JSON.parse(raw) : [];
+    const filtered = items.filter(l => l.ownerId !== userId);
+    localStorage.setItem(LISTINGS_KEY, JSON.stringify(filtered));
+    resolve();
   });
 }
 

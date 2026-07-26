@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
-import { getListing, deleteListing, toggleListingSold, type Listing } from '../../lib/localStore';
+import { getListing, deleteListing, toggleListingSold, incrementListingViews, type Listing } from '../../lib/localStore';
 import { useAuth } from '../../context/AuthContext';
 import { sendMessage, makeConvId } from '../../lib/localMessages';
 import { isFavorite, toggleFavorite } from '../../lib/localFavorites';
 import { useToast } from '../../context/ToastContext';
 import { getSellerReviews, addSellerReview, getSellerAverageRating, type Review } from '../../lib/localReviews';
+import { addReport, type ReportReason } from '../../lib/localReports';
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -18,6 +19,14 @@ function timeAgo(iso: string): string {
   if (h < 24) return `${h} saat önce`;
   return `${Math.floor(h / 24)} gün önce`;
 }
+
+const REPORT_REASONS: ReportReason[] = [
+  'Yanıltıcı / Yanlış Bilgi',
+  'Uygunsuz / Sakıncalı İçerik',
+  'Dolandırıcılık Şüphesi',
+  'Fiyat / İletişim Hatası',
+  'Diğer',
+];
 
 export default function ListingDetail() {
   const router   = useRouter();
@@ -45,8 +54,15 @@ export default function ListingDetail() {
   const [commentInput,     setCommentInput]     = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
 
+  // Şikayet Modalı Durumu
+  const [showReportModal,  setShowReportModal]  = useState(false);
+  const [reportReason,     setReportReason]     = useState<ReportReason>('Yanıltıcı / Yanlış Bilgi');
+  const [reportDetails,    setReportDetails]    = useState('');
+  const [submittingReport, setSubmittingReport] = useState(false);
+
   useEffect(() => {
     if (!id) return;
+    incrementListingViews(id);
     getListing(id).then(l => {
       setListing(l);
       setPageLoading(false);
@@ -155,6 +171,30 @@ export default function ListingDetail() {
     showToast('Değerlendirmeniz yayınlandı! ⭐', 'success');
   };
 
+  const handleSendReport = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      showToast('Şikayet bildirmek için giriş yapmalısınız.', 'info');
+      return;
+    }
+    if (!listing?.id) return;
+
+    setSubmittingReport(true);
+    addReport({
+      listingId: listing.id,
+      listingTitle: listing.title,
+      reporterId: user.uid,
+      reporterEmail: user.email,
+      reason: reportReason,
+      details: reportDetails.trim(),
+    });
+
+    setSubmittingReport(false);
+    setShowReportModal(false);
+    setReportDetails('');
+    showToast('Şikayetiniz yöneticilere iletildi. İnceleme yapılacaktır. 🛡️', 'success');
+  };
+
   if (pageLoading) {
     return (
       <Layout>
@@ -191,15 +231,23 @@ export default function ListingDetail() {
       <div style={{ background: 'linear-gradient(160deg, #F5F0EB 0%, #F0E8E8 100%)', padding: '2rem 1.25rem 4rem', minHeight: 'calc(100vh - 180px)' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto' }}>
 
-          {/* Üst Bar: Geri ve Paylaş Butonları */}
+          {/* Üst Bar: Geri, Şikayet Et ve Paylaş Butonları */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
             <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#6B7280', fontSize: '0.83rem', textDecoration: 'none' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
               Tüm İlanlar
             </Link>
 
-            {/* Paylaş Butonları */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {!isOwner && (
+                <button
+                  type="button"
+                  onClick={() => setShowReportModal(true)}
+                  style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', padding: '0.3rem 0.6rem', boxShadow: 'none' }}
+                >
+                  ⚠️ İlanı Şikayet Et
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleCopyLink}
@@ -289,7 +337,7 @@ export default function ListingDetail() {
                   {fav ? '❤️' : '🤍'}
                 </button>
 
-                {/* Kategori + Satıldı Rozeti + tarih */}
+                {/* Kategori + Satıldı Rozeti + Tarih & Görüntülenme */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', paddingRight: '2.5rem' }}>
                   <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
                     {listing.category && <span className="badge badge-red">{listing.category}</span>}
@@ -297,7 +345,10 @@ export default function ListingDetail() {
                       <span className="badge" style={{ background: '#EF4444', color: '#fff' }}>🏷️ SATILDI</span>
                     )}
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>{listing.createdAt ? timeAgo(listing.createdAt) : ''}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.75rem', color: '#9CA3AF' }}>
+                    <span>👁️ {listing.viewsCount || 1} Kez Bakıldı</span>
+                    <span>{listing.createdAt ? timeAgo(listing.createdAt) : ''}</span>
+                  </div>
                 </div>
 
                 {/* Başlık */}
@@ -441,7 +492,7 @@ export default function ListingDetail() {
               </div>
             )}
 
-            {/* ── Satıcı Değerlendirmeleri ve Yorum Yapma Modülü ── */}
+            {/* ── Satıcı Değerlendirmeleri ── */}
             <div className="card" style={{ padding: '1.5rem', border: 'none' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <h2 style={{ fontSize: '1rem', fontWeight: 800, color: '#111827', margin: 0 }}>
@@ -454,7 +505,6 @@ export default function ListingDetail() {
                 )}
               </div>
 
-              {/* Yorum Yapma Formu */}
               {!isOwner && user && (
                 <form onSubmit={handleAddReview} style={{ background: '#F9FAFB', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1.5rem', border: '1px solid #E5E7EB' }}>
                   <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#374151', marginBottom: '0.5rem' }}>Satıcıyı Değerlendir</h3>
@@ -495,7 +545,6 @@ export default function ListingDetail() {
                 </form>
               )}
 
-              {/* Var Olan Yorumlar Listesi */}
               {reviews.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '1.5rem', color: '#9CA3AF', fontSize: '0.85rem' }}>
                   Henüz bu satıcı için değerlendirme yapılmamış. İlk yorumu siz yazabilirsiniz!
@@ -527,6 +576,65 @@ export default function ListingDetail() {
           </div>
         </div>
       </div>
+
+      {/* ── İlan Şikayet Modalı ── */}
+      {showReportModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '1rem',
+          }}
+          onClick={() => setShowReportModal(false)}
+        >
+          <div
+            className="card animate-slide-up"
+            onClick={e => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: '440px', padding: '1.75rem', border: 'none' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <h2 style={{ fontWeight: 800, fontSize: '1.1rem', color: '#111827', margin: 0 }}>⚠️ İlanı Şikayet Et</h2>
+              <button onClick={() => setShowReportModal(false)} style={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: '1.2rem', cursor: 'pointer', boxShadow: 'none' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleSendReport}>
+              <div className="form-group">
+                <label className="form-label">Şikayet Nedeni</label>
+                <select
+                  className="form-input"
+                  value={reportReason}
+                  onChange={e => setReportReason(e.target.value as ReportReason)}
+                  style={{ fontFamily: 'inherit' }}
+                >
+                  {REPORT_REASONS.map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Ek Açıklama (İsteğe Bağlı)</label>
+                <textarea
+                  className="form-input form-textarea"
+                  placeholder="Lütfen detay veriniz..."
+                  value={reportDetails}
+                  onChange={e => setReportDetails(e.target.value)}
+                  rows={3}
+                  maxLength={300}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+                <button type="button" onClick={() => setShowReportModal(false)} className="btn btn-outline btn-sm">İptal</button>
+                <button type="submit" disabled={submittingReport} className="btn btn-sm" style={{ background: '#DC2626', color: '#fff', border: 'none', fontWeight: 700 }}>
+                  {submittingReport ? 'İletiliyor…' : 'Şikayeti Gönder'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ── Lightbox Galeri Modal ── */}
       {lightboxOpen && images.length > 0 && (

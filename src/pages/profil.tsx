@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { signOutLocal } from '../lib/localAuth';
-import { getUserListings, deleteListing, type Listing } from '../lib/localStore';
+import { getUserListings, deleteListing, deleteUserAndListings, getUserMonthlyListingCount, type Listing } from '../lib/localStore';
 import { getUserConversations } from '../lib/localMessages';
 import { useToast } from '../context/ToastContext';
 import { getSellerReviews, getSellerAverageRating, type Review } from '../lib/localReviews';
@@ -24,12 +24,13 @@ export default function ProfilePage() {
   const { showToast } = useToast();
   const router = useRouter();
 
-  const [listings,   setListings]   = useState<Listing[]>([]);
-  const [convCount,  setConvCount]  = useState(0);
-  const [reviews,    setReviews]    = useState<Review[]>([]);
-  const [rating,     setRating]     = useState<{ average: number; count: number }>({ average: 0, count: 0 });
-  const [pageReady,  setPageReady]  = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [listings,      setListings]      = useState<Listing[]>([]);
+  const [convCount,     setConvCount]     = useState(0);
+  const [reviews,       setReviews]       = useState<Review[]>([]);
+  const [rating,        setRating]        = useState<{ average: number; count: number }>({ average: 0, count: 0 });
+  const [monthlyCount,  setMonthlyCount]  = useState(0);
+  const [pageReady,     setPageReady]     = useState(false);
+  const [deletingId,    setDeletingId]    = useState<string | null>(null);
 
   // Şifre Değiştirme Formu Durumu
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -45,6 +46,7 @@ export default function ProfilePage() {
     setConvCount(getUserConversations(user.uid).length);
     setReviews(getSellerReviews(user.uid));
     setRating(getSellerAverageRating(user.uid));
+    setMonthlyCount(getUserMonthlyListingCount(user.uid));
     setPageReady(true);
   }, [user, loading, router]);
 
@@ -61,6 +63,24 @@ export default function ProfilePage() {
     signOutLocal();
     window.dispatchEvent(new StorageEvent('storage', { key: 'fu_current_user' }));
     showToast('Çıkış yapıldı.', 'info');
+    router.push('/');
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    const confirm1 = window.confirm('HESABINIZI SİLMEK İSTEDİĞİNİZE EMİN MİSİNİZ?\nTüm ilanlarınız ve profil verileriniz silinecektir.');
+    if (!confirm1) return;
+
+    const confirm2 = window.prompt('Onaylamak için lütfen "HESABIMI SİL" yazın:');
+    if (confirm2 !== 'HESABIMI SİL') {
+      showToast('Hesap silme işlemi iptal edildi.', 'info');
+      return;
+    }
+
+    await deleteUserAndListings(user.uid);
+    signOutLocal();
+    window.dispatchEvent(new StorageEvent('storage', { key: 'fu_current_user' }));
+    showToast('Hesabınız ve tüm verileriniz başarıyla silindi.', 'info');
     router.push('/');
   };
 
@@ -106,6 +126,7 @@ export default function ProfilePage() {
 
   const initials = user!.email[0].toUpperCase();
   const username = user!.email.split('@')[0];
+  const isAdmin = user && (user.email.includes('admin') || user.email === 'demo@firat.edu.tr');
 
   return (
     <Layout>
@@ -132,14 +153,21 @@ export default function ProfilePage() {
                     {initials}
                   </div>
                   <div style={{ paddingBottom: '0.25rem' }}>
-                    <h1 style={{ fontSize: '1.4rem', fontWeight: 900, color: '#111827', letterSpacing: '-0.01em', margin: 0 }}>
-                      {username}
-                    </h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <h1 style={{ fontSize: '1.4rem', fontWeight: 900, color: '#111827', letterSpacing: '-0.01em', margin: 0 }}>
+                        {username}
+                      </h1>
+                      {isAdmin && (
+                        <Link href="/admin" className="badge badge-red" style={{ textDecoration: 'none', fontSize: '0.7rem' }}>
+                          🛡️ Admin
+                        </Link>
+                      )}
+                    </div>
                     <p style={{ color: '#6B7280', fontSize: '0.82rem', margin: 0 }}>{user!.email}</p>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <button
                     onClick={() => setShowPasswordModal(true)}
                     className="btn btn-outline btn-sm"
@@ -160,9 +188,6 @@ export default function ProfilePage() {
                     onMouseEnter={e => { e.currentTarget.style.borderColor = '#EF4444'; e.currentTarget.style.color = '#EF4444'; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#6B7280'; }}
                   >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                    </svg>
                     Çıkış Yap
                   </button>
                 </div>
@@ -175,6 +200,9 @@ export default function ProfilePage() {
                 </span>
                 <span style={{ background: '#FEF3C7', color: '#92400E', fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.625rem', borderRadius: '999px', border: '1px solid #FDE68A' }}>
                   ✓ Aktif Üye
+                </span>
+                <span style={{ background: '#E0F2FE', color: '#0369A1', fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.625rem', borderRadius: '999px' }}>
+                  📊 Aylık Limit: {monthlyCount} / 10 İlan
                 </span>
                 {rating.count > 0 && (
                   <span style={{ background: '#FEF3C7', color: '#B45309', fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.625rem', borderRadius: '999px' }}>
@@ -240,66 +268,23 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {/* ── İlanlarım ── */}
-          <div className="card" style={{ padding: '1.5rem', border: 'none' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-              <h2 style={{ fontWeight: 700, fontSize: '0.95rem', color: '#374151', margin: 0 }}>İlanlarım</h2>
-              <Link href="/listings/my" style={{ fontSize: '0.8rem', color: '#8B1A1A', fontWeight: 600, textDecoration: 'none' }}>
-                Tümünü Gör →
-              </Link>
+          {/* ── Tehlikeli Bölge (Hesap Silme) ── */}
+          <div className="card" style={{ padding: '1.5rem', border: '1px solid #FECACA', background: '#FEF2F2', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#991B1B', margin: 0 }}>Hesabımı Sil</h3>
+                <p style={{ fontSize: '0.8rem', color: '#B91C1C', marginTop: '0.2rem', margin: 0 }}>
+                  Hesabınızı ve yayınladığınız tüm ilanları kalıcı olarak siler.
+                </p>
+              </div>
+              <button
+                onClick={handleDeleteAccount}
+                className="btn btn-sm"
+                style={{ background: '#DC2626', color: '#fff', border: 'none', fontWeight: 700 }}
+              >
+                ⚠️ Hesabımı Kalıcı Olarak Sil
+              </button>
             </div>
-
-            {listings.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📭</div>
-                <p style={{ fontSize: '0.875rem', marginBottom: '1rem' }}>Henüz ilan eklemediniz.</p>
-                <Link href="/listings/create" className="btn btn-gold">
-                  İlk İlanı Ekle
-                </Link>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {listings.slice(0, 5).map(listing => (
-                  <div key={listing.id}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '0.75rem', background: '#F9FAFB', borderRadius: '0.625rem', transition: 'background 0.2s' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#F3F4F6')}
-                    onMouseLeave={e => (e.currentTarget.style.background = '#F9FAFB')}
-                  >
-                    <div style={{ width: 52, height: 52, borderRadius: '0.5rem', overflow: 'hidden', flexShrink: 0, background: '#E5E7EB' }}>
-                      {listing.images?.[0] ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={listing.images[0]} alt={listing.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      ) : (
-                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem' }}>📦</div>
-                      )}
-                    </div>
-
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: '0.875rem', color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {listing.title}
-                      </div>
-                      <div style={{ fontSize: '0.78rem', color: '#8B1A1A', fontWeight: 700 }}>
-                        {formatPrice(listing.price)}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '0.375rem', flexShrink: 0 }}>
-                      <Link href={`/listings/${listing.id}`}
-                        style={{ padding: '0.3rem 0.625rem', borderRadius: '0.375rem', fontSize: '0.75rem', border: '1px solid #E5E7EB', color: '#374151', textDecoration: 'none', fontWeight: 500, background: '#fff' }}>
-                        Gör
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(listing.id!, listing.title)}
-                        disabled={deletingId === listing.id}
-                        style={{ padding: '0.3rem 0.625rem', borderRadius: '0.375rem', fontSize: '0.75rem', border: '1px solid #FECACA', color: '#EF4444', fontWeight: 500, background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', boxShadow: 'none' }}
-                      >
-                        {deletingId === listing.id ? '…' : 'Sil'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
         </div>

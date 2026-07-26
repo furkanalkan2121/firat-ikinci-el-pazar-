@@ -174,6 +174,7 @@ export default function Header() {
                       </div>
                       {[
                         { href: '/profil',       icon: '👤', label: 'Profilim' },
+                        ...(user && (user.email.includes('admin') || user.email === 'demo@firat.edu.tr') ? [{ href: '/admin', icon: '🛡️', label: 'Admin Paneli' }] : []),
                         { href: '/favorilerim',  icon: '❤️', label: 'Favorilerim' },
                         { href: '/listings/my',  icon: '📋', label: 'İlanlarım' },
                         { href: '/listings/create', icon: '➕', label: 'İlan Ver' },
