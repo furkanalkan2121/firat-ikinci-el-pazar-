@@ -72,6 +72,17 @@ export function sendMessage(params: {
   };
   messages.push(msg);
   saveAll(messages);
+
+  // Tarayıcı Bildirimi Tetikle (Masaüstü Notification)
+  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification(`Yeni Mesaj: ${params.senderEmail.split('@')[0]}`, {
+        body: params.text.length > 50 ? `${params.text.slice(0, 50)}…` : params.text,
+        icon: '/favicon.ico',
+      });
+    } catch {}
+  }
+
   return msg;
 }
 
