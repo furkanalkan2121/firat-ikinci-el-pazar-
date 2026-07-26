@@ -3,11 +3,12 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
-import { addListing } from '../../lib/localStore';
+import { addListing, FU_FACULTIES } from '../../lib/localStore';
 import { useToast } from '../../context/ToastContext';
 
 const CATEGORIES = [
   { label: 'Kitap & Ders Materyali', emoji: '📚' },
+  { label: 'Kitap Takas & Değiş-Tokuş', emoji: '🤝' },
   { label: 'Elektronik',             emoji: '💻' },
   { label: 'Mobilya & Ev Eşyası',   emoji: '🛋️' },
   { label: 'Giyim & Aksesuar',      emoji: '👕' },
@@ -47,6 +48,8 @@ export default function CreateListing() {
   const [description, setDescription] = useState('');
   const [price,       setPrice]       = useState('');
   const [category,    setCategory]    = useState('');
+  const [department,  setDepartment]  = useState('Tüm Bölümler');
+  const [isExchange,  setIsExchange]  = useState(false);
   const [previews,    setPreviews]    = useState<string[]>([]);
   const [files,       setFiles]       = useState<File[]>([]);
   const [message,     setMessage]     = useState('');
@@ -121,6 +124,8 @@ export default function CreateListing() {
         images:      imageDataUrls,
         ownerId:     user.uid,
         category:    category || undefined,
+        department:  department !== 'Tüm Bölümler' ? department : undefined,
+        isExchange:  isExchange,
       });
 
       setProgress(100);
@@ -189,6 +194,34 @@ export default function CreateListing() {
                       {cat.emoji} {cat.label}
                     </button>
                   ))}
+                </div>
+
+                {/* Fakülte / Bölüm Seçimi */}
+                <div style={{ marginTop: '1rem' }}>
+                  <label className="form-label">Fakülte / Bölüm İlgisi (İsteğe Bağlı)</label>
+                  <select
+                    className="form-input"
+                    value={department}
+                    onChange={e => setDepartment(e.target.value)}
+                    style={{ fontFamily: 'inherit' }}
+                  >
+                    {FU_FACULTIES.map(fac => (
+                      <option key={fac} value={fac}>{fac}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Takas / Değiş-Tokuş Seçeneği */}
+                <div style={{ marginTop: '0.85rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: '#8B1A1A' }}>
+                    <input
+                      type="checkbox"
+                      checked={isExchange}
+                      onChange={e => setIsExchange(e.target.checked)}
+                      style={{ accentColor: '#8B1A1A', width: 16, height: 16 }}
+                    />
+                    🤝 Ders Kitabı / Materyal Takas &amp; Değiş-Tokuş İlanıdır
+                  </label>
                 </div>
               </div>
 

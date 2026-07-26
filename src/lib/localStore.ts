@@ -12,10 +12,63 @@ export type Listing = {
   images?: string[];
   ownerId?: string;
   category?: string;
+  department?: string; // FÜ Fakülte/Bölüm seçeneği
+  isExchange?: boolean; // Kitap Değiş-tokuş / Takas ilanı mı?
   createdAt?: string;
   isSold?: boolean;
   viewsCount?: number;
 };
+
+export const FU_FACULTIES = [
+  'Tüm Bölümler',
+  'Mühendislik Fakültesi',
+  'Tıp Fakültesi',
+  'İktisadi ve İdari Bilimler Fakültesi',
+  'Eğitim Fakültesi',
+  'Fen Fakültesi',
+  'İnsani ve Sosyal Bilimler Fakültesi',
+  'İlahiyat Fakültesi',
+  'Spor Bilimleri Fakültesi',
+  'Teknoloji Fakültesi',
+  'İletişim Fakültesi',
+  'Diğer / Meslek Yüksekokulları',
+];
+
+export type Announcement = {
+  id: string;
+  title: string;
+  clubName: string;
+  content: string;
+  date: string;
+  emoji: string;
+};
+
+export const INITIAL_ANNOUNCEMENTS: Announcement[] = [
+  {
+    id: 'ann-1',
+    title: 'Ders Kitabı & Materyal Değiş-Tokuş Günleri',
+    clubName: 'FÜ Kitap Topluluğu',
+    content: 'Dönem başı ders kitaplarınızı ücretsiz takas etmek için Çarşamba günü Öğrenci Merkezi önündeyiz!',
+    date: '28 Temmuz 2026',
+    emoji: '📚',
+  },
+  {
+    id: 'ann-2',
+    title: 'Yazılım ve Teknoloji Kulübü Proje Sergisi',
+    clubName: 'FÜ Yazılım Kulübü',
+    content: 'Öğrenci projelerinizi sergilemek ve ekip arkadaşı bulmak için forumumuza davetlisiniz.',
+    date: '30 Temmuz 2026',
+    emoji: '💻',
+  },
+  {
+    id: 'ann-3',
+    title: 'Kampüs İçi İkinci El Pazarı Kuruluyor',
+    clubName: 'FÜ Öğrenci Konseyi',
+    content: 'Mezun olan öğrencilerin eşyalarını devretmesi için Mühendislik bahçesinde stantlar açılacaktır.',
+    date: '2 Ağustos 2026',
+    emoji: '🎪',
+  },
+];
 
 const LISTINGS_KEY = 'fu_listings';
 

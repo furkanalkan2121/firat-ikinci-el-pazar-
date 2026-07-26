@@ -5,6 +5,7 @@ import { getListings, Listing } from '../lib/firestore';
 import { useAuth } from '../context/AuthContext';
 import { isFavorite, toggleFavorite } from '../lib/localFavorites';
 import { useToast } from '../context/ToastContext';
+import { FU_FACULTIES, INITIAL_ANNOUNCEMENTS } from '../lib/localStore';
 
 const CATEGORIES = [
   { label: 'Tümü',                  emoji: '✨' },
@@ -146,6 +147,20 @@ function ListingCard({ item }: { item: Listing }) {
 
         {/* Content */}
         <div style={{ padding: '1.125rem', display: 'flex', flexDirection: 'column', flex: 1, gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span className="badge badge-red">{item.category ?? 'İkinci El'}</span>
+            {item.isExchange && (
+              <span className="badge" style={{ background: '#059669', color: '#fff', fontSize: '0.68rem' }}>
+                🤝 Takas
+              </span>
+            )}
+            {(item.ownerId?.includes('@firat.edu.tr') || item.ownerId?.includes('@ogr.firat.edu.tr') || item.ownerId === 'demo-user') && (
+              <span className="badge" style={{ background: '#FEF3C7', color: '#92400E', fontSize: '0.68rem', border: '1px solid #FDE68A' }}>
+                🎓 FÜ Öğrencisi
+              </span>
+            )}
+          </div>
+
           <h2
             style={{
               fontWeight: 700, fontSize: '1rem', color: '#111827', lineHeight: 1.3,
@@ -154,6 +169,12 @@ function ListingCard({ item }: { item: Listing }) {
           >
             {item.title}
           </h2>
+
+          {item.department && (
+            <div style={{ fontSize: '0.73rem', color: '#8B1A1A', fontWeight: 600 }}>
+              🏛️ {item.department}
+            </div>
+          )}
 
           {item.description && (
             <p
@@ -180,7 +201,7 @@ function ListingCard({ item }: { item: Listing }) {
               </svg>
               İlan
             </span>
-            <span className="badge badge-red">{item.category ?? 'İkinci El'}</span>
+            <span style={{ fontSize: '0.72rem', color: '#8B1A1A', fontWeight: 700 }}>İncele →</span>
           </div>
         </div>
       </article>
@@ -207,13 +228,15 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   // Filtre durumları
-  const [search, setSearch]           = useState('');
-  const [category, setCategory]       = useState('Tümü');
-  const [minPrice, setMinPrice]       = useState('');
-  const [maxPrice, setMaxPrice]       = useState('');
-  const [sortBy, setSortBy]           = useState<'newest' | 'price-asc' | 'price-desc' | 'oldest'>('newest');
-  const [hideSold, setHideSold]       = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const [search, setSearch]             = useState('');
+  const [category, setCategory]         = useState('Tümü');
+  const [department, setDepartment]     = useState('Tüm Bölümler');
+  const [onlyExchange, setOnlyExchange] = useState(false);
+  const [minPrice, setMinPrice]         = useState('');
+  const [maxPrice, setMaxPrice]         = useState('');
+  const [sortBy, setSortBy]             = useState<'newest' | 'price-asc' | 'price-desc' | 'oldest'>('newest');
+  const [hideSold, setHideSold]         = useState(false);
+  const [showFilters, setShowFilters]   = useState(false);
   const [visibleCount, setVisibleCount] = useState(6);
 
   useEffect(() => {
@@ -226,7 +249,7 @@ export default function Home() {
   // Filtre değiştiğinde görünen ilan sayısını sıfırla
   useEffect(() => {
     setVisibleCount(6);
-  }, [search, category, minPrice, maxPrice, sortBy, hideSold]);
+  }, [search, category, department, onlyExchange, minPrice, maxPrice, sortBy, hideSold]);
 
   // Gelişmiş filtreleme ve sıralama mantığı
   const filteredItems = useMemo(() => {
@@ -241,6 +264,12 @@ export default function Home() {
         // Kategori filtresi
         const matchesCategory = category === 'Tümü' || it.category === category;
 
+        // Bölüm filtresi
+        const matchesDept = department === 'Tüm Bölümler' || it.department === department;
+
+        // Sadece Takas filtresi
+        const matchesExchange = !onlyExchange || it.isExchange;
+
         // Fiyat aralığı filtresi
         const price = it.price ?? 0;
         const min = minPrice !== '' ? Number(minPrice) : null;
@@ -251,27 +280,28 @@ export default function Home() {
         // Satılanları gizle filtresi
         const matchesSold = !hideSold || !it.isSold;
 
-        return matchesSearch && matchesCategory && matchesMinPrice && matchesMaxPrice && matchesSold;
+        return matchesSearch && matchesCategory && matchesDept && matchesExchange && matchesMinPrice && matchesMaxPrice && matchesSold;
       })
       .sort((a, b) => {
         if (sortBy === 'price-asc') return (a.price ?? 0) - (b.price ?? 0);
         if (sortBy === 'price-desc') return (b.price ?? 0) - (a.price ?? 0);
         if (sortBy === 'oldest') return new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime();
-        // default newest
         return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
       });
-  }, [items, search, category, minPrice, maxPrice, sortBy, hideSold]);
+  }, [items, search, category, department, onlyExchange, minPrice, maxPrice, sortBy, hideSold]);
 
   const clearFilters = () => {
     setSearch('');
     setCategory('Tümü');
+    setDepartment('Tüm Bölümler');
+    setOnlyExchange(false);
     setMinPrice('');
     setMaxPrice('');
     setSortBy('newest');
     setHideSold(false);
   };
 
-  const hasActiveFilters = search || category !== 'Tümü' || minPrice || maxPrice || hideSold || sortBy !== 'newest';
+  const hasActiveFilters = search || category !== 'Tümü' || department !== 'Tüm Bölümler' || onlyExchange || minPrice || maxPrice || hideSold || sortBy !== 'newest';
 
   return (
     <Layout>
@@ -404,19 +434,70 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Gelişmiş Filtre Paneli & Sıralama Barı ── */}
-      <section style={{ background: '#FAF7F5', borderBottom: '1px solid #E5E7EB', padding: '1.25rem 0' }}>
+      {/* ── FÜ Öğrenci Toplulukları Duyuruları ── */}
+      <section style={{ background: '#FFFDF9', borderBottom: '1px solid #F3F4F6', padding: '1.5rem 0' }}>
+        <div className="page-container">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '1.2rem' }}>📣</span>
+              <h2 style={{ fontSize: '1rem', fontWeight: 800, color: '#111827', margin: 0 }}>
+                FÜ Öğrenci Toplulukları &amp; Kampüs Duyuruları
+              </h2>
+            </div>
+            <span style={{ fontSize: '0.75rem', color: '#8B1A1A', fontWeight: 600 }}>Etkinlikler &amp; Kitap Takas Günleri</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+            {INITIAL_ANNOUNCEMENTS.map(ann => (
+              <div
+                key={ann.id}
+                style={{
+                  background: '#fff', padding: '1rem', borderRadius: '0.75rem',
+                  border: '1px solid #F3F4F6', boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                  display: 'flex', flexDirection: 'column', gap: '0.35rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#8B1A1A', background: '#FFF5F5', padding: '0.15rem 0.5rem', borderRadius: '0.375rem' }}>
+                    {ann.clubName}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: '#9CA3AF' }}>{ann.date}</span>
+                </div>
+                <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#111827', margin: '0.2rem 0 0' }}>
+                  {ann.emoji} {ann.title}
+                </h3>
+                <p style={{ fontSize: '0.8rem', color: '#4B5563', margin: 0, lineHeight: 1.4 }}>
+                  {ann.content}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Filtreler & Sıralama Barı ── */}
+      <section style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '1rem 0' }}>
         <div className="page-container">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
 
-            {/* Sol: Sonuç Bilgisi ve Aktif Filtre Temizle */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#374151' }}>
-                {loading ? 'Yükleniyor…' : `${filteredItems.length} İlan Bulundu`}
+            {/* Sol: Aktif Filtre İndikatörleri */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#111827' }}>
+                {filteredItems.length} İlan Listeleniyor
               </span>
               {category !== 'Tümü' && (
                 <span className="badge badge-red" style={{ fontSize: '0.75rem' }}>
                   {category} ✕
+                </span>
+              )}
+              {department !== 'Tüm Bölümler' && (
+                <span className="badge" style={{ background: '#FEF3C7', color: '#92400E', fontSize: '0.75rem' }}>
+                  🏛️ {department} ✕
+                </span>
+              )}
+              {onlyExchange && (
+                <span className="badge" style={{ background: '#D1FAE5', color: '#065F46', fontSize: '0.75rem' }}>
+                  🤝 Sadece Takas ✕
                 </span>
               )}
               {hasActiveFilters && (
@@ -430,8 +511,18 @@ export default function Home() {
               )}
             </div>
 
-            {/* Sağ: Sıralama Dropdown ve Satılanları Gizle Switch */}
+            {/* Sağ: Sıralama Dropdown ve Takas / Satılanlar Switch */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.82rem', color: '#065F46', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
+                <input
+                  type="checkbox"
+                  checked={onlyExchange}
+                  onChange={e => setOnlyExchange(e.target.checked)}
+                  style={{ accentColor: '#059669', cursor: 'pointer' }}
+                />
+                🤝 Sadece Takas İlanları
+              </label>
+
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.82rem', color: '#4B5563', cursor: 'pointer', userSelect: 'none' }}>
                 <input
                   type="checkbox"
@@ -462,9 +553,28 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Açılır Kapanır Detaylı Filtre Çubuğu (Fiyat Min/Max) */}
+          {/* Açılır Kapanır Detaylı Filtre Çubuğu (Bölüm + Fiyat Min/Max) */}
           {showFilters && (
             <div className="animate-slide-up" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed #E5E7EB', display: 'flex', gap: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              
+              {/* Fakülte / Bölüm Seçimi */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#374151' }}>Bölüm / Fakülte:</span>
+                <select
+                  value={department}
+                  onChange={e => setDepartment(e.target.value)}
+                  style={{
+                    padding: '0.35rem 0.65rem', borderRadius: '0.375rem', border: '1px solid #D1D5DB',
+                    fontSize: '0.82rem', outline: 'none', background: '#fff', fontFamily: 'inherit'
+                  }}
+                >
+                  {FU_FACULTIES.map(fac => (
+                    <option key={fac} value={fac}>{fac}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Fiyat Min / Max */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#374151' }}>Fiyat Aralığı:</span>
                 <input
