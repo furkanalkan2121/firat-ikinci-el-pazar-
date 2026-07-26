@@ -149,9 +149,14 @@ function ListingCard({ item }: { item: Listing }) {
         <div style={{ padding: '1.125rem', display: 'flex', flexDirection: 'column', flex: 1, gap: '0.5rem' }}>
           <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <span className="badge badge-red">{item.category ?? 'İkinci El'}</span>
-            {item.isExchange && (
+            {item.allowTrade && (
               <span className="badge" style={{ background: '#059669', color: '#fff', fontSize: '0.68rem' }}>
-                🤝 Takas
+                🤝 Nakit &amp; Takas
+              </span>
+            )}
+            {item.isExchange && (
+              <span className="badge" style={{ background: '#D97706', color: '#fff', fontSize: '0.68rem' }}>
+                📚 Takas İlanı
               </span>
             )}
             {(item.ownerId?.includes('@firat.edu.tr') || item.ownerId?.includes('@ogr.firat.edu.tr') || item.ownerId === 'demo-user') && (
@@ -268,7 +273,7 @@ export default function Home() {
         const matchesDept = department === 'Tüm Bölümler' || it.department === department;
 
         // Sadece Takas filtresi
-        const matchesExchange = !onlyExchange || it.isExchange;
+        const matchesExchange = !onlyExchange || it.isExchange || it.allowTrade;
 
         // Fiyat aralığı filtresi
         const price = it.price ?? 0;

@@ -13,7 +13,8 @@ export type Listing = {
   ownerId?: string;
   category?: string;
   department?: string; // FÜ Fakülte/Bölüm seçeneği
-  isExchange?: boolean; // Kitap Değiş-tokuş / Takas ilanı mı?
+  isExchange?: boolean; // Sadece Takas / Değiş-tokuş ilanı mı?
+  allowTrade?: boolean; // Hem Satılık Hem Takasa Uygundur
   createdAt?: string;
   isSold?: boolean;
   viewsCount?: number;

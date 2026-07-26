@@ -337,10 +337,20 @@ export default function ListingDetail() {
                   {fav ? '❤️' : '🤍'}
                 </button>
 
-                {/* Kategori + Satıldı Rozeti + Tarih & Görüntülenme */}
+                {/* Kategori + Satıldı Rozeti + Takas Rozeti + Tarih & Görüntülenme */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', paddingRight: '2.5rem' }}>
-                  <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     {listing.category && <span className="badge badge-red">{listing.category}</span>}
+                    {listing.allowTrade && (
+                      <span className="badge" style={{ background: '#059669', color: '#fff', fontSize: '0.72rem' }}>
+                        🤝 Nakit &amp; Takas Olur
+                      </span>
+                    )}
+                    {listing.isExchange && (
+                      <span className="badge" style={{ background: '#D97706', color: '#fff', fontSize: '0.72rem' }}>
+                        📚 Ücretsiz Takas İlanı
+                      </span>
+                    )}
                     {listing.isSold && (
                       <span className="badge" style={{ background: '#EF4444', color: '#fff' }}>🏷️ SATILDI</span>
                     )}

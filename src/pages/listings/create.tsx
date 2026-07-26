@@ -50,6 +50,7 @@ export default function CreateListing() {
   const [category,    setCategory]    = useState('');
   const [department,  setDepartment]  = useState('Tüm Bölümler');
   const [isExchange,  setIsExchange]  = useState(false);
+  const [allowTrade,  setAllowTrade]  = useState(false);
   const [previews,    setPreviews]    = useState<string[]>([]);
   const [files,       setFiles]       = useState<File[]>([]);
   const [message,     setMessage]     = useState('');
@@ -126,6 +127,7 @@ export default function CreateListing() {
         category:    category || undefined,
         department:  department !== 'Tüm Bölümler' ? department : undefined,
         isExchange:  isExchange,
+        allowTrade:  allowTrade,
       });
 
       setProgress(100);
@@ -211,8 +213,17 @@ export default function CreateListing() {
                   </select>
                 </div>
 
-                {/* Takas / Değiş-Tokuş Seçeneği */}
-                <div style={{ marginTop: '0.85rem' }}>
+                {/* Takas / Değiş-Tokuş Seçenekleri */}
+                <div style={{ marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#FFFDF9', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #FDE68A' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: '#065F46' }}>
+                    <input
+                      type="checkbox"
+                      checked={allowTrade}
+                      onChange={e => setAllowTrade(e.target.checked)}
+                      style={{ accentColor: '#059669', width: 16, height: 16 }}
+                    />
+                    🤝 Ürün Nakit Satışın Yanında Takasa da Uygundur
+                  </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: '#8B1A1A' }}>
                     <input
                       type="checkbox"
@@ -220,7 +231,7 @@ export default function CreateListing() {
                       onChange={e => setIsExchange(e.target.checked)}
                       style={{ accentColor: '#8B1A1A', width: 16, height: 16 }}
                     />
-                    🤝 Ders Kitabı / Materyal Takas &amp; Değiş-Tokuş İlanıdır
+                    📚 Sadece Ders Kitabı / Materyal Ücretsiz Takas İlanıdır
                   </label>
                 </div>
               </div>

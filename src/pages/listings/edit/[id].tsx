@@ -48,15 +48,9 @@ export default function EditListing() {
   const [title,       setTitle]       = useState('');
   const [description, setDescription] = useState('');
   const [price,       setPrice]       = useState('');
-  const [category,    setCategory]    = useState('');
-  const [existingImgs,setExistingImgs]= useState<string[]>([]);
-  const [newFiles,    setNewFiles]    = useState<File[]>([]);
-  const [newPreviews, setNewPreviews] = useState<string[]>([]);
-  const [isSold,      setIsSold]      = useState(false);
-
-  const [message,     setMessage]     = useState('');
-  const [isError,     setIsError]     = useState(false);
-  const [submitting,  setSubmitting]  = useState(false);
+  const [department,  setDepartment]  = useState('Tüm Bölümler');
+  const [isExchange,  setIsExchange]  = useState(false);
+  const [allowTrade,  setAllowTrade]  = useState(false);
 
   useEffect(() => {
     if (loading || !id) return;
@@ -75,6 +69,9 @@ export default function EditListing() {
         setDescription(item.description || '');
         setPrice(item.price !== undefined ? String(item.price) : '');
         setCategory(item.category || '');
+        setDepartment(item.department || 'Tüm Bölümler');
+        setIsExchange(!!item.isExchange);
+        setAllowTrade(!!item.allowTrade);
         setExistingImgs(item.images || []);
         setIsSold(!!item.isSold);
       }
@@ -141,6 +138,9 @@ export default function EditListing() {
         description: description.trim() || undefined,
         price: price ? Number(price) : undefined,
         category: category || undefined,
+        department: department !== 'Tüm Bölümler' ? department : undefined,
+        isExchange,
+        allowTrade,
         images: updatedImages,
         isSold,
       });
