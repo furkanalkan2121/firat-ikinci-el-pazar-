@@ -214,6 +214,7 @@ export default function Home() {
   const [sortBy, setSortBy]           = useState<'newest' | 'price-asc' | 'price-desc' | 'oldest'>('newest');
   const [hideSold, setHideSold]       = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(6);
 
   useEffect(() => {
     getListings()
@@ -221,6 +222,11 @@ export default function Home() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  // Filtre değiştiğinde görünen ilan sayısını sıfırla
+  useEffect(() => {
+    setVisibleCount(6);
+  }, [search, category, minPrice, maxPrice, sortBy, hideSold]);
 
   // Gelişmiş filtreleme ve sıralama mantığı
   const filteredItems = useMemo(() => {
@@ -499,11 +505,27 @@ export default function Home() {
               </button>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1.5rem' }}>
-              {filteredItems.map(item => (
-                <ListingCard key={item.id} item={item} />
-              ))}
-            </div>
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1.5rem' }}>
+                {filteredItems.slice(0, visibleCount).map(item => (
+                  <ListingCard key={item.id} item={item} />
+                ))}
+              </div>
+
+              {/* Daha Fazla Göster Butonu */}
+              {visibleCount < filteredItems.length && (
+                <div style={{ textAlign: 'center', marginTop: '3rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount(prev => prev + 6)}
+                    className="btn btn-outline btn-lg"
+                    style={{ background: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', fontWeight: 700 }}
+                  >
+                    ⬇️ Daha Fazla İlan Yükle ({filteredItems.length - visibleCount} İlan Kaldı)
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </section>

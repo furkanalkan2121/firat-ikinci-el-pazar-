@@ -13,6 +13,29 @@ export default function Header() {
   const [unread, setUnread] = useState(0);
   const [favCount, setFavCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+
+  // Dark mode başlatma
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('fu_theme');
+    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      setDarkMode(true);
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  }, []);
+
+  const toggleDarkMode = () => {
+    const newMode = !darkMode;
+    setDarkMode(newMode);
+    if (newMode) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('fu_theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('fu_theme', 'light');
+    }
+  };
 
   // Okunmamış mesaj ve favori sayısını yükle
   const updateCounts = () => {
@@ -30,6 +53,7 @@ export default function Header() {
   const handleSignOut = () => {
     signOutLocal();
     setMenuOpen(false);
+    setMobileNavOpen(false);
     forceUpdate(n => n + 1);
     window.dispatchEvent(new StorageEvent('storage', { key: 'fu_current_user' }));
     router.push('/');
@@ -58,7 +82,7 @@ export default function Header() {
       boxShadow: '0 2px 16px rgba(107,16,16,0.45)',
       position: 'sticky', top: 0, zIndex: 50,
     }}>
-      <div className="page-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '68px' }}>
+      <div className="page-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '68px', padding: '0 1.25rem' }}>
 
         {/* Logo */}
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none' }}>
@@ -74,23 +98,30 @@ export default function Header() {
         </Link>
 
         {/* Desktop Nav */}
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+        <nav className="desktop-nav" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {/* Dark Mode Butonu */}
+          <button
+            onClick={toggleDarkMode}
+            title={darkMode ? 'Aydınlık Mod' : 'Karanlık Mod'}
+            style={{
+              background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
+              width: 34, height: 34, borderRadius: '50%', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem',
+              boxShadow: 'none', transition: 'background 0.2s',
+            }}
+          >
+            {darkMode ? '☀️' : '🌙'}
+          </button>
+
           {user ? (
             <>
               {/* İlanlarım */}
-              <Link href="/listings/my" style={navLinkStyle('/listings/my')}
-                onMouseEnter={e => { if (!isActive('/listings/my')) e.currentTarget.style.color = '#fff'; }}
-                onMouseLeave={e => { if (!isActive('/listings/my')) e.currentTarget.style.color = 'rgba(255,255,255,0.85)'; }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/>
-                </svg>
+              <Link href="/listings/my" style={navLinkStyle('/listings/my')}>
                 İlanlarım
               </Link>
 
               {/* Favorilerim */}
-              <Link href="/favorilerim" style={{ ...navLinkStyle('/favorilerim'), position: 'relative' }}
-                onMouseEnter={e => { if (!isActive('/favorilerim')) e.currentTarget.style.color = '#fff'; }}
-                onMouseLeave={e => { if (!isActive('/favorilerim')) e.currentTarget.style.color = 'rgba(255,255,255,0.85)'; }}>
+              <Link href="/favorilerim" style={{ ...navLinkStyle('/favorilerim'), position: 'relative' }}>
                 <span>❤️</span>
                 Favorilerim
                 {favCount > 0 && (
@@ -108,12 +139,7 @@ export default function Header() {
               </Link>
 
               {/* Mesajlarım */}
-              <Link href="/mesajlar" style={{ ...navLinkStyle('/mesajlar'), position: 'relative' }}
-                onMouseEnter={e => { if (!isActive('/mesajlar')) e.currentTarget.style.color = '#fff'; }}
-                onMouseLeave={e => { if (!isActive('/mesajlar')) e.currentTarget.style.color = 'rgba(255,255,255,0.85)'; }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-                </svg>
+              <Link href="/mesajlar" style={{ ...navLinkStyle('/mesajlar'), position: 'relative' }}>
                 Mesajlar
                 {unread > 0 && (
                   <span style={{
@@ -129,49 +155,33 @@ export default function Header() {
                 )}
               </Link>
 
-              {/* Profil dropdown */}
+              {/* Profil Dropdown */}
               <div style={{ position: 'relative' }}>
                 <button
                   onClick={() => setMenuOpen(o => !o)}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.5rem',
-                    padding: '0.3rem 0.5rem 0.3rem 0.5rem',
-                    background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
-                    borderRadius: '0.625rem', cursor: 'pointer', fontFamily: 'inherit',
-                    color: '#fff', fontSize: '0.82rem', fontWeight: 600, boxShadow: 'none',
-                    transition: 'background 0.2s',
+                    padding: '0.3rem 0.5rem', background: 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.15)', borderRadius: '0.625rem',
+                    color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
                 >
-                  <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#C9A227', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.75rem', color: '#6B1010' }}>
+                  <div style={{
+                    width: 28, height: 28, borderRadius: '50%', background: '#C9A227',
+                    color: '#6B1010', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
                     {user.email[0].toUpperCase()}
                   </div>
-                  <span style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {user.email.split('@')[0]}
-                  </span>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-                    style={{ transform: menuOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>
-                    <polyline points="6 9 12 15 18 9"/>
-                  </svg>
                 </button>
 
-                {/* Dropdown menu */}
                 {menuOpen && (
                   <>
                     <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
                     <div style={{
                       position: 'absolute', top: 'calc(100% + 0.5rem)', right: 0,
                       background: '#fff', borderRadius: '0.875rem', boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
-                      minWidth: 200, overflow: 'hidden', zIndex: 50,
-                      border: '1px solid #F3F4F6', animation: 'fadeIn 0.15s ease',
+                      minWidth: 190, overflow: 'hidden', zIndex: 50, border: '1px solid #F3F4F6',
                     }}>
-                      <div style={{ padding: '0.875rem 1rem', borderBottom: '1px solid #F3F4F6' }}>
-                        <div style={{ fontWeight: 700, fontSize: '0.875rem', color: '#111827', marginBottom: '0.125rem' }}>
-                          {user.email.split('@')[0]}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>{user.email}</div>
-                      </div>
                       {[
                         { href: '/profil',       icon: '👤', label: 'Profilim' },
                         ...(user && (user.email.includes('admin') || user.email === 'demo@firat.edu.tr') ? [{ href: '/admin', icon: '🛡️', label: 'Admin Paneli' }] : []),
@@ -181,34 +191,20 @@ export default function Header() {
                         { href: '/mesajlar',     icon: '💬', label: 'Mesajlarım' },
                       ].map(item => (
                         <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)}
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', padding: '0.625rem 1rem', color: '#374151', textDecoration: 'none', fontSize: '0.875rem', fontWeight: 500, transition: 'background 0.15s' }}
-                          onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
-                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', padding: '0.625rem 1rem', color: '#374151', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 500 }}>
                           <span>{item.icon}</span>
                           {item.label}
-                          {item.href === '/mesajlar' && unread > 0 && (
-                            <span style={{ marginLeft: 'auto', background: '#EF4444', color: '#fff', borderRadius: '999px', padding: '0 6px', fontSize: '0.68rem', fontWeight: 800 }}>
-                              {unread}
-                            </span>
-                          )}
                         </Link>
                       ))}
-                      <div style={{ borderTop: '1px solid #F3F4F6' }}>
-                        <button onClick={handleSignOut}
-                          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.625rem', padding: '0.625rem 1rem', color: '#EF4444', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, fontFamily: 'inherit', boxShadow: 'none', transition: 'background 0.15s' }}
-                          onMouseEnter={e => (e.currentTarget.style.background = '#FEF2F2')}
-                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                          </svg>
-                          Çıkış Yap
-                        </button>
-                      </div>
+                      <button onClick={handleSignOut} style={{ width: '100%', textAlign: 'left', padding: '0.625rem 1rem', border: 'none', background: 'none', color: '#EF4444', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', borderTop: '1px solid #F3F4F6' }}>
+                        🚪 Çıkış Yap
+                      </button>
                     </div>
                   </>
                 )}
               </div>
 
+              {/* İlan Ver Butonu */}
               <Link href="/listings/create" className="btn btn-gold btn-sm">
                 + İlan Ver
               </Link>
@@ -220,10 +216,71 @@ export default function Header() {
             </>
           )}
         </nav>
+
+        {/* Mobil Hamburger Butonu */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button
+            onClick={toggleDarkMode}
+            style={{
+              background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
+              width: 34, height: 34, borderRadius: '50%', cursor: 'pointer',
+              fontSize: '1rem', display: 'none',
+            }}
+            className="mobile-dark-btn"
+          >
+            {darkMode ? '☀️' : '🌙'}
+          </button>
+          <button
+            onClick={() => setMobileNavOpen(o => !o)}
+            className="mobile-menu-btn"
+            style={{
+              background: 'none', border: 'none', color: '#fff', fontSize: '1.5rem',
+              cursor: 'pointer', padding: '0.25rem', boxShadow: 'none',
+            }}
+          >
+            {mobileNavOpen ? '✕' : '☰'}
+          </button>
+        </div>
+
       </div>
 
-      {/* Gold accent line */}
-      <div style={{ height: '3px', background: 'linear-gradient(90deg,transparent 0%,#C9A227 30%,#E8C547 60%,transparent 100%)' }} />
+      {/* Mobil Menü Çekmecesi */}
+      {mobileNavOpen && (
+        <div style={{ background: '#6B1010', borderTop: '1px solid rgba(255,255,255,0.1)', padding: '1rem 1.25rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {user ? (
+              <>
+                <Link href="/listings/create" onClick={() => setMobileNavOpen(false)} className="btn btn-gold" style={{ justifyContent: 'center' }}>
+                  + İlan Ver
+                </Link>
+                <Link href="/profil" onClick={() => setMobileNavOpen(false)} style={{ color: '#fff', textDecoration: 'none', fontWeight: 600 }}>👤 Profilim ({user.email.split('@')[0]})</Link>
+                <Link href="/favorilerim" onClick={() => setMobileNavOpen(false)} style={{ color: '#fff', textDecoration: 'none', fontWeight: 600 }}>❤️ Favorilerim ({favCount})</Link>
+                <Link href="/listings/my" onClick={() => setMobileNavOpen(false)} style={{ color: '#fff', textDecoration: 'none', fontWeight: 600 }}>📋 İlanlarım</Link>
+                <Link href="/mesajlar" onClick={() => setMobileNavOpen(false)} style={{ color: '#fff', textDecoration: 'none', fontWeight: 600 }}>💬 Mesajlar ({unread})</Link>
+                <button onClick={handleSignOut} style={{ background: 'none', border: 'none', color: '#EF4444', textAlign: 'left', fontWeight: 700, cursor: 'pointer', padding: 0 }}>🚪 Çıkış Yap</button>
+              </>
+            ) : (
+              <>
+                <Link href="/auth/signin" onClick={() => setMobileNavOpen(false)} className="btn btn-outline" style={{ color: '#fff', borderColor: '#fff', justifyContent: 'center' }}>Giriş Yap</Link>
+                <Link href="/auth/signup" onClick={() => setMobileNavOpen(false)} className="btn btn-gold" style={{ justifyContent: 'center' }}>Kayıt Ol</Link>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Mobil CSS Stilleri */}
+      <style jsx>{`
+        @media (max-width: 768px) {
+          :global(.desktop-nav) { display: none !important; }
+          :global(.mobile-menu-btn) { display: block !important; }
+          :global(.mobile-dark-btn) { display: flex !important; }
+        }
+        @media (min-width: 769px) {
+          :global(.mobile-menu-btn) { display: none !important; }
+          :global(.mobile-dark-btn) { display: none !important; }
+        }
+      `}</style>
     </header>
   );
 }
