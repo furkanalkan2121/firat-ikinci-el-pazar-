@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
-import { addListing, FU_FACULTIES } from '../../lib/localStore';
+import { addListing, FU_FACULTIES, FU_CAMPUS_LOCATIONS } from '../../lib/localStore';
 import { useToast } from '../../context/ToastContext';
 
 const CATEGORIES = [
@@ -49,6 +49,7 @@ export default function CreateListing() {
   const [price,       setPrice]       = useState('');
   const [category,    setCategory]    = useState('');
   const [department,  setDepartment]  = useState('Tüm Bölümler');
+  const [location,    setLocation]    = useState('Rektörlük Kampüsü');
   const [isExchange,  setIsExchange]  = useState(false);
   const [allowTrade,  setAllowTrade]  = useState(false);
   const [previews,    setPreviews]    = useState<string[]>([]);
@@ -126,6 +127,7 @@ export default function CreateListing() {
         ownerId:     user.uid,
         category:    category || undefined,
         department:  department !== 'Tüm Bölümler' ? department : undefined,
+        location:    location !== 'Tüm Kampüs Noktaları' ? location : undefined,
         isExchange:  isExchange,
         allowTrade:  allowTrade,
       });
@@ -209,6 +211,21 @@ export default function CreateListing() {
                   >
                     {FU_FACULTIES.map(fac => (
                       <option key={fac} value={fac}>{fac}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Kampüs Teslimat Noktası */}
+                <div style={{ marginTop: '1rem' }}>
+                  <label className="form-label">📍 Teslimat Yapılabilecek Kampüs Noktası</label>
+                  <select
+                    className="form-input"
+                    value={location}
+                    onChange={e => setLocation(e.target.value)}
+                    style={{ fontFamily: 'inherit' }}
+                  >
+                    {FU_CAMPUS_LOCATIONS.filter(l => l !== 'Tüm Kampüs Noktaları').map(loc => (
+                      <option key={loc} value={loc}>{loc}</option>
                     ))}
                   </select>
                 </div>

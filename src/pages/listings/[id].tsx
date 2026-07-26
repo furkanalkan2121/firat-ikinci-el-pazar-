@@ -398,6 +398,17 @@ export default function ListingDetail() {
                   </div>
                 </div>
 
+                {/* 📍 Teslimat Noktası & Kampüs Konum Kartı */}
+                <div style={{ padding: '0.875rem', background: '#FFFDF9', borderRadius: '0.5rem', border: '1px solid #FDE68A', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#92400E', textTransform: 'uppercase' }}>📍 Teslimat Noktası</span>
+                    <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#111827', margin: '0.1rem 0 0' }}>
+                      {listing.location || 'Rektörlük Kampüsü'}
+                    </h4>
+                  </div>
+                  <span style={{ fontSize: '1.5rem' }}>🗺️</span>
+                </div>
+
                 {/* Aksiyonlar */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', marginTop: 'auto' }}>
                   {isOwner ? (

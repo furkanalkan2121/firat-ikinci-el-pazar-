@@ -5,7 +5,7 @@ import { getListings, Listing } from '../lib/firestore';
 import { useAuth } from '../context/AuthContext';
 import { isFavorite, toggleFavorite } from '../lib/localFavorites';
 import { useToast } from '../context/ToastContext';
-import { FU_FACULTIES, INITIAL_ANNOUNCEMENTS } from '../lib/localStore';
+import { FU_FACULTIES, FU_CAMPUS_LOCATIONS, INITIAL_ANNOUNCEMENTS } from '../lib/localStore';
 
 const CATEGORIES = [
   { label: 'Tümü',                  emoji: '✨' },
@@ -181,6 +181,12 @@ function ListingCard({ item }: { item: Listing }) {
             </div>
           )}
 
+          {item.location && (
+            <div style={{ fontSize: '0.73rem', color: '#059669', fontWeight: 600 }}>
+              📍 {item.location}
+            </div>
+          )}
+
           {item.description && (
             <p
               style={{
@@ -236,6 +242,7 @@ export default function Home() {
   const [search, setSearch]             = useState('');
   const [category, setCategory]         = useState('Tümü');
   const [department, setDepartment]     = useState('Tüm Bölümler');
+  const [location, setLocation]         = useState('Tüm Kampüs Noktaları');
   const [onlyExchange, setOnlyExchange] = useState(false);
   const [minPrice, setMinPrice]         = useState('');
   const [maxPrice, setMaxPrice]         = useState('');
@@ -254,7 +261,7 @@ export default function Home() {
   // Filtre değiştiğinde görünen ilan sayısını sıfırla
   useEffect(() => {
     setVisibleCount(6);
-  }, [search, category, department, onlyExchange, minPrice, maxPrice, sortBy, hideSold]);
+  }, [search, category, department, location, onlyExchange, minPrice, maxPrice, sortBy, hideSold]);
 
   // Gelişmiş filtreleme ve sıralama mantığı
   const filteredItems = useMemo(() => {
@@ -272,6 +279,9 @@ export default function Home() {
         // Bölüm filtresi
         const matchesDept = department === 'Tüm Bölümler' || it.department === department;
 
+        // Kampüs Lokasyon filtresi
+        const matchesLoc = location === 'Tüm Kampüs Noktaları' || (it.location || 'Rektörlük Kampüsü') === location;
+
         // Sadece Takas filtresi
         const matchesExchange = !onlyExchange || it.isExchange || it.allowTrade;
 
@@ -285,7 +295,7 @@ export default function Home() {
         // Satılanları gizle filtresi
         const matchesSold = !hideSold || !it.isSold;
 
-        return matchesSearch && matchesCategory && matchesDept && matchesExchange && matchesMinPrice && matchesMaxPrice && matchesSold;
+        return matchesSearch && matchesCategory && matchesDept && matchesLoc && matchesExchange && matchesMinPrice && matchesMaxPrice && matchesSold;
       })
       .sort((a, b) => {
         if (sortBy === 'price-asc') return (a.price ?? 0) - (b.price ?? 0);
@@ -293,12 +303,13 @@ export default function Home() {
         if (sortBy === 'oldest') return new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime();
         return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
       });
-  }, [items, search, category, department, onlyExchange, minPrice, maxPrice, sortBy, hideSold]);
+  }, [items, search, category, department, location, onlyExchange, minPrice, maxPrice, sortBy, hideSold]);
 
   const clearFilters = () => {
     setSearch('');
     setCategory('Tümü');
     setDepartment('Tüm Bölümler');
+    setLocation('Tüm Kampüs Noktaları');
     setOnlyExchange(false);
     setMinPrice('');
     setMaxPrice('');
@@ -306,7 +317,7 @@ export default function Home() {
     setHideSold(false);
   };
 
-  const hasActiveFilters = search || category !== 'Tümü' || department !== 'Tüm Bölümler' || onlyExchange || minPrice || maxPrice || hideSold || sortBy !== 'newest';
+  const hasActiveFilters = search || category !== 'Tümü' || department !== 'Tüm Bölümler' || location !== 'Tüm Kampüs Noktaları' || onlyExchange || minPrice || maxPrice || hideSold || sortBy !== 'newest';
 
   return (
     <Layout>
@@ -558,7 +569,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Açılır Kapanır Detaylı Filtre Çubuğu (Bölüm + Fiyat Min/Max) */}
+          {/* Açılır Kapanır Detaylı Filtre Çubuğu (Bölüm + Konum + Fiyat Min/Max) */}
           {showFilters && (
             <div className="animate-slide-up" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed #E5E7EB', display: 'flex', gap: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
               
@@ -575,6 +586,23 @@ export default function Home() {
                 >
                   {FU_FACULTIES.map(fac => (
                     <option key={fac} value={fac}>{fac}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Kampüs Teslimat Noktası */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#374151' }}>📍 Teslimat Noktası:</span>
+                <select
+                  value={location}
+                  onChange={e => setLocation(e.target.value)}
+                  style={{
+                    padding: '0.35rem 0.65rem', borderRadius: '0.375rem', border: '1px solid #D1D5DB',
+                    fontSize: '0.82rem', outline: 'none', background: '#fff', fontFamily: 'inherit'
+                  }}
+                >
+                  {FU_CAMPUS_LOCATIONS.map(loc => (
+                    <option key={loc} value={loc}>{loc}</option>
                   ))}
                 </select>
               </div>

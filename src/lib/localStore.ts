@@ -13,12 +13,25 @@ export type Listing = {
   ownerId?: string;
   category?: string;
   department?: string; // FÜ Fakülte/Bölüm seçeneği
+  location?: string;   // FÜ Kampüs Teslimat Noktası
   isExchange?: boolean; // Sadece Takas / Değiş-tokuş ilanı mı?
   allowTrade?: boolean; // Hem Satılık Hem Takasa Uygundur
   createdAt?: string;
   isSold?: boolean;
   viewsCount?: number;
 };
+
+export const FU_CAMPUS_LOCATIONS = [
+  'Tüm Kampüs Noktaları',
+  'Rektörlük Kampüsü',
+  'Mühendislik Kampüsü (Ana Giriş)',
+  'Merkez Kütüphane Önü',
+  'Öğrenci Evi / Çarşı Bölgesi',
+  'Tıp Fakültesi / Hastane Çevresi',
+  'Doğu Kampüsü',
+  'KYK Yurtlar Bölgesi',
+  'Spor Kompleksi Önü',
+];
 
 export const FU_FACULTIES = [
   'Tüm Bölümler',
