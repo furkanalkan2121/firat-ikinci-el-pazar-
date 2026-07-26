@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
 import { addListing } from '../../lib/localStore';
+import { useToast } from '../../context/ToastContext';
 
 const CATEGORIES = [
   { label: 'Kitap & Ders Materyali', emoji: '📚' },
@@ -39,6 +40,7 @@ async function compressToDataUrl(file: File): Promise<string> {
 
 export default function CreateListing() {
   const { user, loading } = useAuth();
+  const { showToast } = useToast();
   const router = useRouter();
 
   const [title,       setTitle]       = useState('');
@@ -112,7 +114,7 @@ export default function CreateListing() {
       }
 
       setMessage('İlan kaydediliyor…');
-      await addListing({
+      const newId = await addListing({
         title:       title.trim(),
         description: description.trim() || undefined,
         price:       price ? Number(price) : undefined,
@@ -123,8 +125,9 @@ export default function CreateListing() {
 
       setProgress(100);
       setIsError(false);
-      setMessage('İlan başarıyla oluşturuldu! Yönlendiriliyorsunuz…');
-      setTimeout(() => router.push('/'), 1000);
+      setMessage('İlanınız başarıyla eklendi! Yönlendiriliyorsunuz…');
+      showToast('İlanınız başarıyla yayına alındı! 🎉', 'success');
+      setTimeout(() => router.push(`/listings/${newId}`), 1000);
     } catch (err: any) {
       setIsError(true);
       setMessage(err.message || 'Bir hata oluştu.');

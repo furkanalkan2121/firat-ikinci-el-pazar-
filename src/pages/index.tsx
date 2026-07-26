@@ -3,6 +3,8 @@ import { useEffect, useState, useMemo } from 'react';
 import Layout from '../components/Layout';
 import { getListings, Listing } from '../lib/firestore';
 import { useAuth } from '../context/AuthContext';
+import { isFavorite, toggleFavorite } from '../lib/localFavorites';
+import { useToast } from '../context/ToastContext';
 
 const CATEGORIES = [
   { label: 'Tümü',                  emoji: '✨' },
@@ -15,7 +17,29 @@ const CATEGORIES = [
 ];
 
 function ListingCard({ item }: { item: Listing }) {
+  const { user } = useAuth();
+  const { showToast } = useToast();
   const [imgErr, setImgErr] = useState(false);
+  const [fav, setFav] = useState(false);
+
+  useEffect(() => {
+    if (user && item.id) {
+      setFav(isFavorite(user.uid, item.id));
+    }
+  }, [user, item.id]);
+
+  const handleFavClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) {
+      showToast('Favorilere eklemek için lütfen giriş yapın.', 'info');
+      return;
+    }
+    if (!item.id) return;
+    const isNowFav = toggleFavorite(user.uid, item.id);
+    setFav(isNowFav);
+    showToast(isNowFav ? 'Favorilere eklendi! ❤️' : 'Favorilerden çıkarıldı.', isNowFav ? 'success' : 'info');
+  };
 
   return (
     <Link
@@ -39,6 +63,22 @@ function ListingCard({ item }: { item: Listing }) {
             flexShrink: 0,
           }}
         >
+          {/* Kalp Butonu */}
+          <button
+            onClick={handleFavClick}
+            title={fav ? 'Favorilerden Çıkar' : 'Favorilere Ekle'}
+            style={{
+              position: 'absolute', top: '0.75rem', left: '0.75rem', zIndex: 10,
+              width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,0.9)',
+              border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '1rem', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', transition: 'transform 0.2s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.15)')}
+            onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+          >
+            {fav ? '❤️' : '🤍'}
+          </button>
+
           {item.images && item.images[0] && !imgErr ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

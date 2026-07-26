@@ -5,6 +5,8 @@ import Layout from '../../components/Layout';
 import { getListing, deleteListing, toggleListingSold, type Listing } from '../../lib/localStore';
 import { useAuth } from '../../context/AuthContext';
 import { sendMessage, makeConvId, getUserConversations } from '../../lib/localMessages';
+import { isFavorite, toggleFavorite } from '../../lib/localFavorites';
+import { useToast } from '../../context/ToastContext';
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -20,16 +22,20 @@ export default function ListingDetail() {
   const router   = useRouter();
   const { id }   = router.query as { id: string };
   const { user } = useAuth();
+  const { showToast } = useToast();
 
-  const [listing,    setListing]    = useState<Listing | null>(null);
-  const [pageLoading, setPageLoading] = useState(true);
-  const [imgIndex,   setImgIndex]   = useState(0);
-  const [msgText,    setMsgText]    = useState('');
-  const [msgSent,    setMsgSent]    = useState(false);
-  const [msgError,   setMsgError]   = useState('');
-  const [sendingMsg, setSendingMsg] = useState(false);
-  const [deleting,   setDeleting]   = useState(false);
-  const [hasExistingConv, setHasExistingConv] = useState(false);
+  const [listing,          setListing]          = useState<Listing | null>(null);
+  const [pageLoading,      setPageLoading]      = useState(true);
+  const [imgIndex,         setImgIndex]         = useState(0);
+  const [msgText,          setMsgText]          = useState('');
+  const [msgSent,          setMsgSent]          = useState(false);
+  const [sendingMsg,       setSendingMsg]       = useState(false);
+  const [deleting,         setDeleting]         = useState(false);
+  const [hasExistingConv,  setHasExistingConv]  = useState(false);
+  const [fav,              setFav]              = useState(false);
+
+  // Lightbox Galeri Durumu
+  const [lightboxOpen,     setLightboxOpen]     = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -37,11 +43,13 @@ export default function ListingDetail() {
   }, [id]);
 
   useEffect(() => {
+    if (user && listing && listing.id) {
+      setFav(isFavorite(user.uid, listing.id));
+    }
+  }, [user, listing]);
+
+  useEffect(() => {
     if (!user || !listing || listing.ownerId === user.uid) return;
-    getUserConversations(user.uid).then
-      ? undefined
-      : undefined;
-    // check if conversation already exists
     const convId = makeConvId(listing.id!, user.uid, listing.ownerId!);
     import('../../lib/localMessages').then(({ getConversationMessages }) => {
       const msgs = getConversationMessages(convId);
@@ -51,22 +59,33 @@ export default function ListingDetail() {
 
   const isOwner = user && listing && user.uid === listing.ownerId;
 
+  const handleFavToggle = () => {
+    if (!user) {
+      showToast('Favorilere eklemek için lütfen giriş yapın.', 'info');
+      return;
+    }
+    if (!listing?.id) return;
+    const isNowFav = toggleFavorite(user.uid, listing.id);
+    setFav(isNowFav);
+    showToast(isNowFav ? 'Favorilere eklendi! ❤️' : 'Favorilerden çıkarıldı.', isNowFav ? 'success' : 'info');
+  };
+
   const handleDelete = async () => {
     if (!listing?.id || !window.confirm('İlanı silmek istediğinize emin misiniz?')) return;
     setDeleting(true);
     await deleteListing(listing.id);
+    showToast('İlan başarıyla silindi.', 'info');
     router.push('/listings/my');
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!msgText.trim() || !user || !listing) return;
-    if (!listing.ownerId) { setMsgError('Bu ilanın sahibi bulunamadı.'); return; }
+    if (!msgText.trim() || !user || !listing || !listing.ownerId) return;
+
     setSendingMsg(true);
-    setMsgError('');
+
     try {
-      const { sendMessage: send } = await import('../../lib/localMessages');
-      send({
+      sendMessage({
         listingId: listing.id!,
         listingTitle: listing.title,
         senderId: user.uid,
@@ -75,11 +94,16 @@ export default function ListingDetail() {
         receiverEmail: listing.ownerId.startsWith('demo') ? 'demo@firat.edu.tr' : listing.ownerId,
         text: msgText.trim(),
       });
+
       setMsgSent(true);
       setMsgText('');
-      setHasExistingConv(true);
-    } catch (err: any) {
-      setMsgError(err.message || 'Mesaj gönderilemedi.');
+      showToast('Mesajınız başarıyla satıcıya iletildi! 💬', 'success');
+      setTimeout(() => {
+        const convId = makeConvId(listing.id!, user.uid, listing.ownerId!);
+        router.push(`/mesajlar/${convId}`);
+      }, 1000);
+    } catch {
+      showToast('Mesaj gönderilirken hata oluştu.', 'error');
     } finally {
       setSendingMsg(false);
     }
@@ -89,10 +113,7 @@ export default function ListingDetail() {
     return (
       <Layout>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div className="fu-mark" style={{ margin: '0 auto 1rem', width: 48, height: 48 }}>FÜ</div>
-            <p style={{ color: '#6B7280' }}>İlan yükleniyor…</p>
-          </div>
+          <div className="fu-mark" style={{ width: 48, height: 48 }}>FÜ</div>
         </div>
       </Layout>
     );
@@ -102,18 +123,20 @@ export default function ListingDetail() {
     return (
       <Layout>
         <div style={{ textAlign: 'center', padding: '5rem 1rem' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔍</div>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📦</div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#111827', marginBottom: '0.5rem' }}>İlan Bulunamadı</h1>
-          <p style={{ color: '#6B7280', marginBottom: '1.5rem' }}>Bu ilan mevcut değil ya da silinmiş olabilir.</p>
-          <Link href="/" className="btn btn-primary">Ana Sayfaya Dön</Link>
+          <p style={{ color: '#6B7280', fontSize: '0.9rem', marginBottom: '1.5rem' }}>Aradığınız ilan silinmiş veya mevcut değil.</p>
+          <Link href="/" className="btn btn-primary">Tüm İlanlara Dön</Link>
         </div>
       </Layout>
     );
   }
 
-  const convId = listing.ownerId && user
+  const convId = user && listing && listing.ownerId
     ? makeConvId(listing.id!, user.uid, listing.ownerId)
     : '';
+
+  const images = listing.images && listing.images.length > 0 ? listing.images : [];
 
   return (
     <Layout>
@@ -128,24 +151,37 @@ export default function ListingDetail() {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
 
-            {/* ── Üst: Görsel + Başlık (masaüstünde yan yana) ── */}
+            {/* ── Üst: Görsel + Başlık (yan yana) ── */}
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '1.5rem' }}>
 
               {/* Görsel galerisi */}
-              <div className="card animate-fade-in" style={{ border: 'none', overflow: 'hidden' }}>
-                {listing.images && listing.images.length > 0 ? (
+              <div className="card animate-fade-in" style={{ border: 'none', overflow: 'hidden', position: 'relative' }}>
+                {images.length > 0 ? (
                   <>
-                    <div style={{ height: '300px', overflow: 'hidden', position: 'relative', background: '#F5F0EB' }}>
+                    <div
+                      onClick={() => setLightboxOpen(true)}
+                      title="Büyütmek için tıklayın"
+                      style={{ height: '320px', overflow: 'hidden', position: 'relative', background: '#F5F0EB', cursor: 'zoom-in' }}
+                    >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={listing.images[imgIndex]}
+                        src={images[imgIndex]}
                         alt={listing.title}
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
+                      {/* Büyüteç İkonu İpucu */}
+                      <div style={{
+                        position: 'absolute', bottom: '0.75rem', right: '0.75rem',
+                        background: 'rgba(0,0,0,0.65)', color: '#fff', padding: '0.3rem 0.65rem',
+                        borderRadius: '0.5rem', fontSize: '0.75rem', fontWeight: 600,
+                        backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '0.3rem'
+                      }}>
+                        <span>🔍 Büyüt</span>
+                      </div>
                     </div>
-                    {listing.images.length > 1 && (
+                    {images.length > 1 && (
                       <div style={{ display: 'flex', gap: '0.5rem', padding: '0.75rem', overflowX: 'auto' }}>
-                        {listing.images.map((src, i) => (
+                        {images.map((src, i) => (
                           <button key={i} onClick={() => setImgIndex(i)}
                             style={{ width: 60, height: 60, borderRadius: '0.375rem', overflow: 'hidden', border: `2px solid ${i === imgIndex ? '#8B1A1A' : '#E5E7EB'}`, padding: 0, cursor: 'pointer', flexShrink: 0, background: 'none', boxShadow: 'none' }}>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -156,7 +192,7 @@ export default function ListingDetail() {
                     )}
                   </>
                 ) : (
-                  <div style={{ height: '300px', background: 'linear-gradient(135deg, #F5E8E8 0%, #F0D8D8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ height: '320px', background: 'linear-gradient(135deg, #F5E8E8 0%, #F0D8D8 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '0.75rem' }}>
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#C9A227" strokeWidth="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21,15 16,10 5,21"/></svg>
                     <span style={{ fontSize: '0.8rem', color: '#9CA3AF' }}>Fotoğraf eklenmemiş</span>
                   </div>
@@ -164,9 +200,27 @@ export default function ListingDetail() {
               </div>
 
               {/* Bilgi kartı */}
-              <div className="card animate-slide-up" style={{ padding: '1.5rem', border: 'none', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="card animate-slide-up" style={{ padding: '1.5rem', border: 'none', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative' }}>
+                
+                {/* Favori Butonu */}
+                <button
+                  onClick={handleFavToggle}
+                  title={fav ? 'Favorilerden Çıkar' : 'Favorilere Ekle'}
+                  style={{
+                    position: 'absolute', top: '1rem', right: '1rem',
+                    width: 40, height: 40, borderRadius: '50%', background: '#F9FAFB',
+                    border: '1px solid #E5E7EB', cursor: 'pointer', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'transform 0.2s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.1)')}
+                  onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+                >
+                  {fav ? '❤️' : '🤍'}
+                </button>
+
                 {/* Kategori + Satıldı Rozeti + tarih */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', paddingRight: '2.5rem' }}>
                   <div style={{ display: 'flex', gap: '0.375rem', alignItems: 'center' }}>
                     {listing.category && <span className="badge badge-red">{listing.category}</span>}
                     {listing.isSold && (
@@ -219,6 +273,7 @@ export default function ListingDetail() {
                           onClick={async () => {
                             const newStatus = await toggleListingSold(listing.id!);
                             setListing(prev => prev ? { ...prev, isSold: newStatus } : null);
+                            showToast(newStatus ? 'İlan Satıldı olarak güncellendi.' : 'İlan tekrar aktif edildi.', 'success');
                           }}
                           className="btn btn-outline btn-sm"
                           style={{ flex: 1, justifyContent: 'center' }}
@@ -262,41 +317,47 @@ export default function ListingDetail() {
               </div>
             </div>
 
-            {/* ── Açıklama ── */}
+            {/* Açıklama */}
             {listing.description && (
               <div className="card" style={{ padding: '1.5rem', border: 'none' }}>
-                <h2 style={{ fontWeight: 700, fontSize: '1rem', color: '#374151', marginBottom: '0.75rem' }}>Açıklama</h2>
-                <p style={{ color: '#4B5563', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{listing.description}</p>
+                <h2 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#374151', marginBottom: '0.75rem' }}>İlan Açıklaması</h2>
+                <p style={{ fontSize: '0.9rem', color: '#4B5563', lineHeight: 1.7, whitespace: 'pre-line' }}>
+                  {listing.description}
+                </p>
               </div>
             )}
 
-            {/* ── Mesaj gönder ── */}
-            {user && !isOwner && !hasExistingConv && (
-              <div className="card" style={{ padding: '1.5rem', border: 'none' }}>
-                <h2 style={{ fontWeight: 700, fontSize: '1rem', color: '#374151', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  💬 Satıcıya Mesaj Gönder
+            {/* Mesaj Gönderme Formu */}
+            {!isOwner && !listing.isSold && user && !hasExistingConv && (
+              <div className="card animate-slide-up" style={{ padding: '1.5rem', border: 'none' }}>
+                <h2 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#374151', marginBottom: '0.75rem' }}>
+                  Satıcıya Mesaj Gönder
                 </h2>
+
                 {msgSent ? (
                   <div className="alert alert-success">
-                    Mesajınız gönderildi!{' '}
-                    <Link href={`/mesajlar/${convId}`} style={{ color: '#166534', fontWeight: 700 }}>
-                      Konuşmayı Görüntüle →
-                    </Link>
+                    ✓ Mesajınız iletildi! Konuşmaya yönlendiriliyorsunuz…
                   </div>
                 ) : (
                   <form onSubmit={handleSendMessage}>
-                    <textarea
-                      className="form-input form-textarea"
-                      placeholder={`"${listing.title}" hakkında bir şey sorun…`}
-                      value={msgText}
-                      onChange={e => setMsgText(e.target.value)}
-                      required
-                      maxLength={1000}
-                      style={{ marginBottom: '0.75rem' }}
-                    />
-                    {msgError && <div className="alert alert-error" style={{ marginBottom: '0.75rem' }}>{msgError}</div>}
-                    <button type="submit" disabled={sendingMsg || !msgText.trim()} className="btn btn-primary">
-                      {sendingMsg ? 'Gönderiliyor…' : 'Mesaj Gönder'}
+                    <div className="form-group">
+                      <textarea
+                        className="form-input form-textarea"
+                        placeholder="Merhaba, bu ürünle ilgileniyorum. Durumu nedir?"
+                        value={msgText}
+                        onChange={e => setMsgText(e.target.value)}
+                        rows={3}
+                        required
+                        maxLength={500}
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={sendingMsg || !msgText.trim()}
+                      className="btn btn-primary btn-lg"
+                      style={{ width: '100%', justifyContent: 'center' }}
+                    >
+                      {sendingMsg ? 'Gönderiliyor…' : '✉️ Mesaj Gönder'}
                     </button>
                   </form>
                 )}
@@ -306,6 +367,86 @@ export default function ListingDetail() {
           </div>
         </div>
       </div>
+
+      {/* ── Lightbox Galeri Modal (Tam Ekran Görsel) ── */}
+      {lightboxOpen && images.length > 0 && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 99999,
+            background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(10px)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: '1rem',
+          }}
+          onClick={() => setLightboxOpen(false)}
+        >
+          {/* Kapat butonu */}
+          <button
+            onClick={() => setLightboxOpen(false)}
+            style={{
+              position: 'absolute', top: '1.5rem', right: '1.5rem',
+              background: 'rgba(255,255,255,0.15)', color: '#fff', border: 'none',
+              width: 44, height: 44, borderRadius: '50%', fontSize: '1.25rem',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: 'none', transition: 'background 0.2s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.3)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
+          >
+            ✕
+          </button>
+
+          {/* Görsel Sayacı */}
+          <div style={{
+            position: 'absolute', top: '1.75rem', left: '1.5rem',
+            color: 'rgba(255,255,255,0.85)', fontSize: '0.9rem', fontWeight: 600
+          }}>
+            {imgIndex + 1} / {images.length}
+          </div>
+
+          {/* Büyük Görsel */}
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ position: 'relative', maxWidth: '90vw', maxHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={images[imgIndex]}
+              alt=""
+              style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: '0.5rem', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}
+            />
+          </div>
+
+          {/* Önceki / Sonraki Butonları */}
+          {images.length > 1 && (
+            <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: '1.5rem', marginTop: '1.5rem' }}>
+              <button
+                onClick={() => setImgIndex(prev => (prev === 0 ? images.length - 1 : prev - 1))}
+                style={{
+                  background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)',
+                  padding: '0.5rem 1.25rem', borderRadius: '999px', fontSize: '0.9rem', fontWeight: 700,
+                  cursor: 'pointer', fontFamily: 'inherit', boxShadow: 'none', transition: 'background 0.2s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.3)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
+              >
+                ← Önceki
+              </button>
+              <button
+                onClick={() => setImgIndex(prev => (prev === images.length - 1 ? 0 : prev + 1))}
+                style={{
+                  background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)',
+                  padding: '0.5rem 1.25rem', borderRadius: '999px', fontSize: '0.9rem', fontWeight: 700,
+                  cursor: 'pointer', fontFamily: 'inherit', boxShadow: 'none', transition: 'background 0.2s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.3)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
+              >
+                Sonraki →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </Layout>
   );
 }

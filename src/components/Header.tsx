@@ -4,18 +4,27 @@ import { useAuth } from '../context/AuthContext';
 import { signOutLocal } from '../lib/localAuth';
 import { useEffect, useState } from 'react';
 import { getTotalUnread } from '../lib/localMessages';
+import { getFavorites } from '../lib/localFavorites';
 
 export default function Header() {
   const { user } = useAuth();
   const router = useRouter();
   const [, forceUpdate] = useState(0);
   const [unread, setUnread] = useState(0);
+  const [favCount, setFavCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Okunmamış mesaj sayısını yükle
-  useEffect(() => {
-    if (!user) { setUnread(0); return; }
+  // Okunmamış mesaj ve favori sayısını yükle
+  const updateCounts = () => {
+    if (!user) { setUnread(0); setFavCount(0); return; }
     setUnread(getTotalUnread(user.uid));
+    setFavCount(getFavorites(user.uid).length);
+  };
+
+  useEffect(() => {
+    updateCounts();
+    window.addEventListener('fu_favorites_updated', updateCounts);
+    return () => window.removeEventListener('fu_favorites_updated', updateCounts);
   }, [user, router.pathname]);
 
   const handleSignOut = () => {
@@ -76,6 +85,26 @@ export default function Header() {
                   <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/>
                 </svg>
                 İlanlarım
+              </Link>
+
+              {/* Favorilerim */}
+              <Link href="/favorilerim" style={{ ...navLinkStyle('/favorilerim'), position: 'relative' }}
+                onMouseEnter={e => { if (!isActive('/favorilerim')) e.currentTarget.style.color = '#fff'; }}
+                onMouseLeave={e => { if (!isActive('/favorilerim')) e.currentTarget.style.color = 'rgba(255,255,255,0.85)'; }}>
+                <span>❤️</span>
+                Favorilerim
+                {favCount > 0 && (
+                  <span style={{
+                    position: 'absolute', top: -4, right: -4,
+                    background: '#C9A227', color: '#6B1010',
+                    borderRadius: '999px', minWidth: 18, height: 18,
+                    fontSize: '0.65rem', fontWeight: 800,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: '0 4px', border: '1.5px solid #8B1A1A',
+                  }}>
+                    {favCount > 9 ? '9+' : favCount}
+                  </span>
+                )}
               </Link>
 
               {/* Mesajlarım */}
@@ -145,6 +174,7 @@ export default function Header() {
                       </div>
                       {[
                         { href: '/profil',       icon: '👤', label: 'Profilim' },
+                        { href: '/favorilerim',  icon: '❤️', label: 'Favorilerim' },
                         { href: '/listings/my',  icon: '📋', label: 'İlanlarım' },
                         { href: '/listings/create', icon: '➕', label: 'İlan Ver' },
                         { href: '/mesajlar',     icon: '💬', label: 'Mesajlarım' },
