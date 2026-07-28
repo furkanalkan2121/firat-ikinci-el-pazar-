@@ -232,7 +232,7 @@ export default function TanismaPage() {
                   className="card animate-slide-up"
                   style={{
                     padding: '1.25rem', border: 'none', display: 'flex', flexDirection: 'column',
-                    justify: 'space-between', gap: '1rem', position: 'relative'
+                    justifyContent: 'space-between', gap: '1rem', position: 'relative'
                   }}
                 >
                   <div>

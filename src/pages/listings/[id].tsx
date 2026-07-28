@@ -123,7 +123,9 @@ export default function ListingDetail() {
     setSendingMsg(true);
 
     try {
+      const convId = makeConvId(listing.id!, user.uid, listing.ownerId);
       sendMessage({
+        conversationId: convId,
         listingId: listing.id!,
         listingTitle: listing.title,
         senderId: user.uid,
@@ -137,7 +139,6 @@ export default function ListingDetail() {
       setMsgText('');
       showToast('Mesajınız başarıyla satıcıya iletildi! 💬', 'success');
       setTimeout(() => {
-        const convId = makeConvId(listing.id!, user.uid, listing.ownerId!);
         router.push(`/mesajlar/${convId}`);
       }, 1000);
     } catch {

@@ -217,7 +217,7 @@ export default function ProfilePage() {
                   <span>🏆</span> Kampüs Başarım Rozetleriniz
                 </h3>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {(user.email.includes('@firat.edu.tr') || user.email.includes('@ogr.firat.edu.tr') || user.uid === 'demo-user') && (
+                  {(user?.email.includes('@firat.edu.tr') || user?.email.includes('@ogr.firat.edu.tr') || user?.uid === 'demo-user') && (
                     <span className="badge" style={{ background: '#FEF3C7', color: '#92400E', fontSize: '0.75rem', padding: '0.35rem 0.75rem', border: '1px solid #FDE68A', fontWeight: 700 }}>
                       🎓 Onaylı FÜ Öğrencisi
                     </span>
