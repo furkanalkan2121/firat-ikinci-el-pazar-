@@ -38,3 +38,23 @@ export function toggleFavorite(userId: string, listingId: string): boolean {
   window.dispatchEvent(new Event('fu_favorites_updated'));
   return !exists;
 }
+
+/** Bir ilanı favorileyen tüm kullanıcı ID'lerini döndür */
+export function getFavoriteUsersForListing(listingId: string): string[] {
+  if (typeof window === 'undefined' || !listingId) return [];
+  const users: string[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(`${FAVORITES_KEY}_`)) {
+        const userId = key.replace(`${FAVORITES_KEY}_`, '');
+        const raw = localStorage.getItem(key);
+        const favs: string[] = raw ? JSON.parse(raw) : [];
+        if (favs.includes(listingId)) {
+          users.push(userId);
+        }
+      }
+    }
+  } catch {}
+  return users;
+}

@@ -210,14 +210,32 @@ function ListingCard({ item }: { item: Listing }) {
               marginTop: '0.625rem', paddingTop: '0.625rem', borderTop: '1px solid #F3F4F6',
             }}
           >
-            <span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12,6 12,12 16,14" />
-              </svg>
-              İlan
-            </span>
             <span style={{ fontSize: '0.72rem', color: '#8B1A1A', fontWeight: 700 }}>İncele →</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const saved = localStorage.getItem('fu_compare_id');
+                if (!saved) {
+                  localStorage.setItem('fu_compare_id', item.id!);
+                  alert(`"${item.title}" 1. karşılaştırma ilanı olarak seçildi. Şimdi 2. bir ilan seçin.`);
+                } else if (saved === item.id) {
+                  alert('Bu ilan zaten 1. olarak seçili!');
+                } else {
+                  localStorage.removeItem('fu_compare_id');
+                  window.location.href = `/karsilastir?id1=${saved}&id2=${item.id}`;
+                }
+              }}
+              style={{
+                background: '#F3F4F6', border: 'none', color: '#374151',
+                padding: '0.25rem 0.6rem', borderRadius: '0.375rem',
+                fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer',
+                boxShadow: 'none', transition: 'background 0.2s',
+              }}
+            >
+              ⚖️ Karşılaştır
+            </button>
           </div>
         </div>
       </article>

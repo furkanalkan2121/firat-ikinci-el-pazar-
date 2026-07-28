@@ -6,6 +6,13 @@ import { useEffect, useState } from 'react';
 import { getTotalUnread } from '../lib/localMessages';
 import { getFavorites } from '../lib/localFavorites';
 
+import {
+  getUserNotifications,
+  getUnreadNotificationCount,
+  markAllNotificationsAsRead,
+  type AppNotification,
+} from '../lib/localNotifications';
+
 export default function Header() {
   const { user } = useAuth();
   const router = useRouter();
@@ -13,6 +20,9 @@ export default function Header() {
   const [unread, setUnread] = useState(0);
   const [favCount, setFavCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
 
@@ -37,17 +47,24 @@ export default function Header() {
     }
   };
 
-  // Okunmamış mesaj ve favori sayısını yükle
+  // Bildirim ve sayacı yükle
   const updateCounts = () => {
-    if (!user) { setUnread(0); setFavCount(0); return; }
+    if (!user) { setUnread(0); setFavCount(0); setUnreadNotifCount(0); return; }
     setUnread(getTotalUnread(user.uid));
     setFavCount(getFavorites(user.uid).length);
+    const userNotifs = getUserNotifications(user.uid);
+    setNotifications(userNotifs);
+    setUnreadNotifCount(getUnreadNotificationCount(user.uid));
   };
 
   useEffect(() => {
     updateCounts();
     window.addEventListener('fu_favorites_updated', updateCounts);
-    return () => window.removeEventListener('fu_favorites_updated', updateCounts);
+    window.addEventListener('fu_notifications_updated', updateCounts);
+    return () => {
+      window.removeEventListener('fu_favorites_updated', updateCounts);
+      window.removeEventListener('fu_notifications_updated', updateCounts);
+    };
   }, [user, router.pathname]);
 
   const handleSignOut = () => {
@@ -154,6 +171,89 @@ export default function Header() {
                   </span>
                 )}
               </Link>
+
+              {/* Bildirimler (Zil 🔔) */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => {
+                    const next = !notifOpen;
+                    setNotifOpen(next);
+                    if (next && user) {
+                      markAllNotificationsAsRead(user.uid);
+                      setUnreadNotifCount(0);
+                    }
+                  }}
+                  title="Bildirimler"
+                  style={{
+                    background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
+                    width: 34, height: 34, borderRadius: '50%', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem',
+                    position: 'relative', boxShadow: 'none',
+                  }}
+                >
+                  🔔
+                  {unreadNotifCount > 0 && (
+                    <span style={{
+                      position: 'absolute', top: -3, right: -3,
+                      background: '#EF4444', color: '#fff',
+                      borderRadius: '999px', minWidth: 18, height: 18,
+                      fontSize: '0.65rem', fontWeight: 800,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      padding: '0 4px', border: '1.5px solid #8B1A1A',
+                    }}>
+                      {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Açılır Bildirim Çekmecesi */}
+                {notifOpen && (
+                  <>
+                    <div onClick={() => setNotifOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                    <div style={{
+                      position: 'absolute', top: 'calc(100% + 0.5rem)', right: 0,
+                      background: '#fff', borderRadius: '0.875rem', boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+                      width: 320, overflow: 'hidden', zIndex: 50, border: '1px solid #F3F4F6',
+                    }}>
+                      <div style={{ padding: '0.75rem 1rem', background: '#F9FAFB', borderBottom: '1px solid #F3F4F6', fontWeight: 800, fontSize: '0.85rem', color: '#111827', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>🔔 Bildirimler Geçmişi</span>
+                        <span style={{ fontSize: '0.7rem', color: '#9CA3AF' }}>{notifications.length} Bildirim</span>
+                      </div>
+
+                      <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                        {notifications.length === 0 ? (
+                          <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#9CA3AF', fontSize: '0.8rem' }}>
+                            Henüz bir bildiriminiz yok.
+                          </div>
+                        ) : (
+                          notifications.map(n => (
+                            <div
+                              key={n.id}
+                              onClick={() => {
+                                setNotifOpen(false);
+                                if (n.listingId) router.push(`/listings/${n.listingId}`);
+                              }}
+                              style={{
+                                padding: '0.75rem 1rem', borderBottom: '1px solid #F3F4F6',
+                                background: n.read ? '#fff' : '#FFFDF9', cursor: n.listingId ? 'pointer' : 'default',
+                                transition: 'background 0.2s',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = '#F9FAFB')}
+                              onMouseLeave={e => (e.currentTarget.style.background = n.read ? '#fff' : '#FFFDF9')}
+                            >
+                              <div style={{ fontWeight: 700, fontSize: '0.8rem', color: '#111827' }}>{n.title}</div>
+                              <div style={{ fontSize: '0.75rem', color: '#4B5563', marginTop: '0.15rem', lineHeight: 1.3 }}>{n.message}</div>
+                              <div style={{ fontSize: '0.65rem', color: '#9CA3AF', marginTop: '0.25rem' }}>
+                                {new Date(n.createdAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
 
               {/* Profil Dropdown */}
               <div style={{ position: 'relative' }}>

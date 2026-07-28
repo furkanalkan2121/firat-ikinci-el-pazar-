@@ -303,6 +303,9 @@ export function getUserListings(userId: string): Promise<Listing[]> {
   });
 }
 
+import { addNotification } from './localNotifications';
+import { getFavoriteUsersForListing } from './localFavorites';
+
 export function updateListing(id: string, patch: Partial<Listing>): Promise<void> {
   return new Promise(resolve => {
     const raw = localStorage.getItem(LISTINGS_KEY);
@@ -312,14 +315,23 @@ export function updateListing(id: string, patch: Partial<Listing>): Promise<void
       const current = items[index];
       const history = current.priceHistory || [];
 
-      // Fiyat değiştiyse geçmişe ekle
-      if (patch.price !== undefined && patch.price !== current.price) {
-        if (current.price !== undefined) {
-          history.unshift({
-            price: current.price,
-            date: new Date().toISOString(),
+      // Fiyat düştüyse favorileyen kullanıcılara bildirim gönder
+      if (patch.price !== undefined && current.price !== undefined && patch.price < current.price) {
+        history.unshift({
+          price: current.price,
+          date: new Date().toISOString(),
+        });
+
+        const favUsers = getFavoriteUsersForListing(id);
+        favUsers.forEach(uid => {
+          addNotification({
+            userId: uid,
+            title: '📉 Favorinizde Fiyat Düşüşü!',
+            message: `Favorilediğiniz "${current.title}" ilanının fiyatı ${current.price} ₺ yerine ${patch.price} ₺'ye düştü!`,
+            listingId: id,
+            type: 'price_drop',
           });
-        }
+        });
       }
 
       items[index] = { ...current, ...patch, priceHistory: history };

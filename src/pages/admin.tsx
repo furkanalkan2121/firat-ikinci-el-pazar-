@@ -89,7 +89,7 @@ export default function AdminPage() {
           </div>
 
           {/* İstatistik Barı */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
             <div className="card" style={{ padding: '1.25rem', textAlign: 'center', border: 'none' }}>
               <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>📦</div>
               <div style={{ fontSize: '1.75rem', fontWeight: 900, color: '#8B1A1A' }}>{listings.length}</div>
@@ -101,11 +101,81 @@ export default function AdminPage() {
               <div style={{ fontSize: '0.78rem', color: '#6B7280', fontWeight: 600 }}>Satılan Ürünler</div>
             </div>
             <div className="card" style={{ padding: '1.25rem', textAlign: 'center', border: 'none' }}>
+              <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>🤝</div>
+              <div style={{ fontSize: '1.75rem', fontWeight: 900, color: '#D97706' }}>
+                {listings.filter(l => l.isExchange || l.allowTrade).length}
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#6B7280', fontWeight: 600 }}>Takas İlanları</div>
+            </div>
+            <div className="card" style={{ padding: '1.25rem', textAlign: 'center', border: 'none' }}>
               <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>⚠️</div>
               <div style={{ fontSize: '1.75rem', fontWeight: 900, color: pendingReportsCount > 0 ? '#DC2626' : '#6B7280' }}>
                 {pendingReportsCount}
               </div>
               <div style={{ fontSize: '0.78rem', color: '#6B7280', fontWeight: 600 }}>Bekleyen Şikayetler</div>
+            </div>
+          </div>
+
+          {/* 📊 Görsel Analiz & Dağılım Grafikleri */}
+          <div className="card" style={{ padding: '1.5rem', border: 'none', marginBottom: '2rem' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 800, color: '#111827', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span>📊</span> Kategori &amp; Fakülte İlan Analitiği
+            </h2>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem' }}>
+              {/* Kategorilere Göre Dağılım */}
+              <div>
+                <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#4B5563', marginBottom: '0.85rem' }}>Kategori Dağılımı</h3>
+                {(() => {
+                  const catCounts: Record<string, number> = {};
+                  listings.forEach(l => {
+                    const c = l.category || 'Diğer';
+                    catCounts[c] = (catCounts[c] || 0) + 1;
+                  });
+                  const total = listings.length || 1;
+                  return Object.entries(catCounts).map(([cat, cnt]) => {
+                    const pct = Math.round((cnt / total) * 100);
+                    return (
+                      <div key={cat} style={{ marginBottom: '0.75rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 600, color: '#374151', marginBottom: '0.25rem' }}>
+                          <span>{cat}</span>
+                          <span>{cnt} İlan (%{pct})</span>
+                        </div>
+                        <div style={{ background: '#F3F4F6', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ background: 'linear-gradient(90deg, #8B1A1A, #C9A227)', width: `${pct}%`, height: '100%', borderRadius: '4px', transition: 'width 0.4s' }} />
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* Fakültelere Göre Dağılım */}
+              <div>
+                <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#4B5563', marginBottom: '0.85rem' }}>Fakülte Dağılımı</h3>
+                {(() => {
+                  const deptCounts: Record<string, number> = {};
+                  listings.forEach(l => {
+                    const d = l.department || 'Genel / Belirtilmemiş';
+                    deptCounts[d] = (deptCounts[d] || 0) + 1;
+                  });
+                  const total = listings.length || 1;
+                  return Object.entries(deptCounts).slice(0, 5).map(([dept, cnt]) => {
+                    const pct = Math.round((cnt / total) * 100);
+                    return (
+                      <div key={dept} style={{ marginBottom: '0.75rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 600, color: '#374151', marginBottom: '0.25rem' }}>
+                          <span>🏛️ {dept}</span>
+                          <span>{cnt} İlan (%{pct})</span>
+                        </div>
+                        <div style={{ background: '#F3F4F6', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ background: 'linear-gradient(90deg, #059669, #10B981)', width: `${pct}%`, height: '100%', borderRadius: '4px', transition: 'width 0.4s' }} />
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
             </div>
           </div>
 
