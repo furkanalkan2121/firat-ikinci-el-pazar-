@@ -130,6 +130,26 @@ export default function Header() {
             {darkMode ? '☀️' : '🌙'}
           </button>
 
+          {/* Kampüs Tanışma */}
+          <Link href="/tanisma" style={navLinkStyle('/tanisma')}>
+            <span>🤝</span> Tanışma
+          </Link>
+
+          {/* Günlük Yemekhane */}
+          <Link href="/yemekhane" style={navLinkStyle('/yemekhane')}>
+            <span>🍜</span> Yemekhane
+          </Link>
+
+          {/* Ders Notları */}
+          <Link href="/notlar" style={navLinkStyle('/notlar')}>
+            <span>📚</span> Not Havuzu
+          </Link>
+
+          {/* Öğrenci Toplulukları */}
+          <Link href="/topluluklar" style={navLinkStyle('/topluluklar')}>
+            <span>👑</span> Topluluklar
+          </Link>
+
           {user ? (
             <>
               {/* İlanlarım */}
@@ -348,6 +368,12 @@ export default function Header() {
       {mobileNavOpen && (
         <div style={{ background: '#6B1010', borderTop: '1px solid rgba(255,255,255,0.1)', padding: '1rem 1.25rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <Link href="/tanisma" onClick={() => setMobileNavOpen(false)} style={{ color: '#fff', textDecoration: 'none', fontWeight: 600 }}>🤝 Kampüs Tanışma</Link>
+            <Link href="/yemekhane" onClick={() => setMobileNavOpen(false)} style={{ color: '#fff', textDecoration: 'none', fontWeight: 600 }}>🍜 Yemekhane Menüsü</Link>
+            <Link href="/notlar" onClick={() => setMobileNavOpen(false)} style={{ color: '#fff', textDecoration: 'none', fontWeight: 600 }}>📚 Ders Notları &amp; Çıkmış Sorular</Link>
+            <Link href="/topluluklar" onClick={() => setMobileNavOpen(false)} style={{ color: '#fff', textDecoration: 'none', fontWeight: 600 }}>👑 Öğrenci Toplulukları</Link>
+            <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.15)', margin: '0.25rem 0' }} />
+
             {user ? (
               <>
                 <Link href="/listings/create" onClick={() => setMobileNavOpen(false)} className="btn btn-gold" style={{ justifyContent: 'center' }}>

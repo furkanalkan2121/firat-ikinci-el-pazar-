@@ -210,6 +210,38 @@ export default function ProfilePage() {
                   </span>
                 )}
               </div>
+
+              {/* 🏆 Öğrenci Başarım Rozetleri */}
+              <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid #F3F4F6' }}>
+                <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: '#374151', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span>🏆</span> Kampüs Başarım Rozetleriniz
+                </h3>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {(user.email.includes('@firat.edu.tr') || user.email.includes('@ogr.firat.edu.tr') || user.uid === 'demo-user') && (
+                    <span className="badge" style={{ background: '#FEF3C7', color: '#92400E', fontSize: '0.75rem', padding: '0.35rem 0.75rem', border: '1px solid #FDE68A', fontWeight: 700 }}>
+                      🎓 Onaylı FÜ Öğrencisi
+                    </span>
+                  )}
+                  {listings.length >= 1 && (
+                    <span className="badge" style={{ background: '#E0F2FE', color: '#0369A1', fontSize: '0.75rem', padding: '0.35rem 0.75rem', border: '1px solid #BAE6FD', fontWeight: 700 }}>
+                      📦 Kampüs İlan Sahibi
+                    </span>
+                  )}
+                  {listings.filter(l => l.category === 'Kitap & Kırtasiye').length >= 1 && (
+                    <span className="badge" style={{ background: '#D1FAE5', color: '#065F46', fontSize: '0.75rem', padding: '0.35rem 0.75rem', border: '1px solid #A7F3D0', fontWeight: 700 }}>
+                      📚 Kitap Dostu
+                    </span>
+                  )}
+                  {rating.average >= 4.5 && rating.count > 0 && (
+                    <span className="badge" style={{ background: '#FEE2E2', color: '#991B1B', fontSize: '0.75rem', padding: '0.35rem 0.75rem', border: '1px solid #FCA5A5', fontWeight: 700 }}>
+                      ⭐ Güvenilir Satıcı (5 Yıldız)
+                    </span>
+                  )}
+                  <span className="badge" style={{ background: '#F3F4F6', color: '#4B5563', fontSize: '0.75rem', padding: '0.35rem 0.75rem', fontWeight: 700 }}>
+                    🤝 Aktif Topluluk Üyesi
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
