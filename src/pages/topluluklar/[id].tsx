@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
+import { isAdminUser } from '../../lib/auth';
 import { useToast } from '../../context/ToastContext';
 import {
   getClubById,
@@ -51,7 +52,7 @@ export default function ClubDetailPage() {
     return () => window.removeEventListener('fu_clubs_updated', loadData);
   }, [id]);
 
-  const isLeader = user && club && (user.email === club.leaderEmail || user.email.includes('admin') || user.email === 'demo@firat.edu.tr');
+  const isLeader = !!user && !!club && (user.email.toLowerCase() === club.leaderEmail.toLowerCase() || isAdminUser(user));
 
   const handleUpdateClubInfo = (e: React.FormEvent) => {
     e.preventDefault();

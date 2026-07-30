@@ -48,6 +48,13 @@ export function addReport(report: Omit<Report, 'id' | 'createdAt' | 'status'>): 
   return newReport;
 }
 
+/** Bir kullanıcının açtığı tüm şikayetleri sil (hesap silme için). */
+export function deleteUserReports(userId: string): void {
+  if (typeof window === 'undefined' || !userId) return;
+  const reports = getReports().filter(r => r.reporterId !== userId);
+  localStorage.setItem(REPORTS_KEY, JSON.stringify(reports));
+}
+
 export function updateReportStatus(reportId: string, status: 'resolved' | 'dismissed'): void {
   const reports = getReports();
   const index = reports.findIndex(r => r.id === reportId);

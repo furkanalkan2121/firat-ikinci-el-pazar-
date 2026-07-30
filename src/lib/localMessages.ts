@@ -1,7 +1,12 @@
 /**
  * localMessages.ts
- * Alıcı-satıcı arası mesajlaşma sistemi (localStorage tabanlı).
+ * Alıcı-satıcı mesajlaşma — Firebase Firestore tabanlı (gerçek, kullanıcılar arası, canlı).
+ * Koleksiyon: messages
  */
+import { db } from './firebase';
+import {
+  collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where, onSnapshot,
+} from 'firebase/firestore';
 
 export type Message = {
   id: string;
@@ -13,8 +18,8 @@ export type Message = {
   receiverId: string;
   receiverEmail: string;
   text: string;
-  imageDataUrl?: string;     // Sohbet içi fotoğraf
-  locationOffer?: string;    // Sohbet içi buluşma noktası teklifi
+  imageDataUrl?: string;
+  locationOffer?: string;
   createdAt: string;
   read: boolean;
 };
@@ -31,23 +36,24 @@ export type Conversation = {
   unreadCount: number;
 };
 
-const MESSAGES_KEY = 'fu_messages';
+const COL = 'messages';
 
 export function makeConvId(listingId: string, uid1: string, uid2: string): string {
   return `${listingId}__${[uid1, uid2].sort().join('__')}`;
 }
 
-function getAll(): Message[] {
-  if (typeof window === 'undefined') return [];
-  const raw = localStorage.getItem(MESSAGES_KEY);
-  return raw ? JSON.parse(raw) : [];
+/** convId'den karşı tarafın uid'sini çöz (mesaj olmasa bile). */
+export function getOtherUidFromConvId(convId: string, myUid: string): string {
+  const parts = convId.split('__');
+  if (parts.length < 3) return '';
+  return parts.slice(1).find(u => u && u !== myUid) ?? '';
 }
 
-function saveAll(messages: Message[]): void {
-  localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
+function emitUpdated() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('fu_messages_updated'));
 }
 
-export function sendMessage(params: {
+export async function sendMessage(params: {
   conversationId: string;
   listingId: string;
   listingTitle: string;
@@ -58,27 +64,13 @@ export function sendMessage(params: {
   text: string;
   imageDataUrl?: string;
   locationOffer?: string;
-}): Message {
-  const messages = getAll();
-  const msg: Message = {
-    id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    conversationId: params.conversationId,
-    listingId: params.listingId,
-    listingTitle: params.listingTitle,
-    senderId: params.senderId,
-    senderEmail: params.senderEmail,
-    receiverId: params.receiverId,
-    receiverEmail: params.receiverEmail,
-    text: params.text,
-    imageDataUrl: params.imageDataUrl,
-    locationOffer: params.locationOffer,
-    createdAt: new Date().toISOString(),
-    read: false,
-  };
-  messages.push(msg);
-  saveAll(messages);
+}): Promise<void> {
+  const clean: Record<string, any> = { createdAt: new Date().toISOString(), read: false };
+  Object.entries(params).forEach(([k, v]) => { if (v !== undefined) clean[k] = v; });
+  await addDoc(collection(db, COL), clean);
+  emitUpdated();
 
-  // Tarayıcı Bildirimi Tetikle (Masaüstü Notification)
+  // Masaüstü bildirimi
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
     try {
       new Notification(`Yeni Mesaj: ${params.senderEmail.split('@')[0]}`, {
@@ -87,25 +79,42 @@ export function sendMessage(params: {
       });
     } catch {}
   }
-
-  return msg;
 }
 
-export function getConversationMessages(convId: string): Message[] {
-  return getAll()
-    .filter(m => m.conversationId === convId)
+export async function getConversationMessages(convId: string): Promise<Message[]> {
+  if (!convId) return [];
+  const snap = await getDocs(query(collection(db, COL), where('conversationId', '==', convId)));
+  return snap.docs
+    .map(d => ({ ...(d.data() as any), id: d.id } as Message))
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
-export function getUserConversations(userId: string): Conversation[] {
-  const messages = getAll().filter(m => m.senderId === userId || m.receiverId === userId);
+/** Bir sohbeti canlı dinle (onSnapshot). Aboneliği iptal eden fonksiyon döner. */
+export function subscribeConversation(convId: string, cb: (msgs: Message[]) => void): () => void {
+  if (!convId) return () => {};
+  const q = query(collection(db, COL), where('conversationId', '==', convId));
+  return onSnapshot(q, snap => {
+    const msgs = snap.docs
+      .map(d => ({ ...(d.data() as any), id: d.id } as Message))
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    cb(msgs);
+  }, () => cb([]));
+}
 
+/** Kullanıcının dahil olduğu tüm mesajları getir (gönderen + alıcı sorguları birleştirilir). */
+async function getUserMessages(userId: string): Promise<Message[]> {
+  const [sent, received] = await Promise.all([
+    getDocs(query(collection(db, COL), where('senderId', '==', userId))),
+    getDocs(query(collection(db, COL), where('receiverId', '==', userId))),
+  ]);
+  const map = new Map<string, Message>();
+  [...sent.docs, ...received.docs].forEach(d => map.set(d.id, { ...(d.data() as any), id: d.id } as Message));
+  return Array.from(map.values());
+}
+
+function buildConversations(messages: Message[], userId: string): Conversation[] {
   const convMap = new Map<string, Conversation>();
-  // En eskiden yeniye işle, son mesaj doğru ayarlansın
-  const sorted = [...messages].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  );
-
+  const sorted = [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   for (const m of sorted) {
     const otherUserId    = m.senderId === userId ? m.receiverId    : m.senderId;
     const otherUserEmail = m.senderId === userId ? m.receiverEmail : m.senderEmail;
@@ -121,19 +130,36 @@ export function getUserConversations(userId: string): Conversation[] {
       unreadCount: (prev?.unreadCount ?? 0) + (m.receiverId === userId && !m.read ? 1 : 0),
     });
   }
-
   return Array.from(convMap.values()).sort(
     (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
   );
 }
 
-export function markConversationRead(convId: string, userId: string): void {
-  const messages = getAll().map(m =>
-    m.conversationId === convId && m.receiverId === userId ? { ...m, read: true } : m
-  );
-  saveAll(messages);
+export async function getUserConversations(userId: string): Promise<Conversation[]> {
+  if (!userId) return [];
+  return buildConversations(await getUserMessages(userId), userId);
 }
 
-export function getTotalUnread(userId: string): number {
-  return getAll().filter(m => m.receiverId === userId && !m.read).length;
+export async function markConversationRead(convId: string, userId: string): Promise<void> {
+  if (!convId || !userId) return;
+  const snap = await getDocs(query(collection(db, COL), where('conversationId', '==', convId)));
+  const toMark = snap.docs.filter(d => {
+    const m = d.data() as any;
+    return m.receiverId === userId && !m.read;
+  });
+  await Promise.all(toMark.map(d => updateDoc(d.ref, { read: true })));
+  if (toMark.length) emitUpdated();
+}
+
+export async function getTotalUnread(userId: string): Promise<number> {
+  if (!userId) return 0;
+  const snap = await getDocs(query(collection(db, COL), where('receiverId', '==', userId)));
+  return snap.docs.filter(d => !(d.data() as any).read).length;
+}
+
+export async function deleteUserMessages(userId: string): Promise<void> {
+  if (!userId) return;
+  const msgs = await getUserMessages(userId);
+  await Promise.all(msgs.map(m => deleteDoc(doc(db, COL, m.id))));
+  emitUpdated();
 }

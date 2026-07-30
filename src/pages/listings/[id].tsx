@@ -11,7 +11,8 @@ import {
   type Listing,
 } from '../../lib/localStore';
 import { useAuth } from '../../context/AuthContext';
-import { sendMessage, makeConvId } from '../../lib/localMessages';
+import { getCurrentUser } from '../../lib/auth';
+import { sendMessage, makeConvId, getConversationMessages } from '../../lib/localMessages';
 import { isFavorite, toggleFavorite } from '../../lib/localFavorites';
 import { useToast } from '../../context/ToastContext';
 import { getSellerReviews, addSellerReview, getSellerAverageRating, type Review } from '../../lib/localReviews';
@@ -69,41 +70,54 @@ export default function ListingDetail() {
 
   useEffect(() => {
     if (!id) return;
-    incrementListingViews(id);
-    getListing(id).then(l => {
+    getListing(id).then(async l => {
+      // Görüntülenmeyi oturumda yalnızca bir kez ve sahibi değilse say
+      if (l?.id) {
+        const viewKey = `fu_viewed_${l.id}`;
+        const current = getCurrentUser();
+        const isOwnerView = current && l.ownerId === current.uid;
+        if (!isOwnerView && !sessionStorage.getItem(viewKey)) {
+          incrementListingViews(l.id);
+          sessionStorage.setItem(viewKey, '1');
+          l = { ...l, viewsCount: (l.viewsCount || 0) + 1 };
+        }
+      }
       setListing(l);
       setPageLoading(false);
       if (l?.ownerId) {
-        setReviews(getSellerReviews(l.ownerId));
-        setSellerRating(getSellerAverageRating(l.ownerId));
+        const [revs, avg] = await Promise.all([
+          getSellerReviews(l.ownerId),
+          getSellerAverageRating(l.ownerId),
+        ]);
+        setReviews(revs);
+        setSellerRating(avg);
       }
     });
   }, [id]);
 
   useEffect(() => {
+    let active = true;
     if (user && listing && listing.id) {
-      setFav(isFavorite(user.uid, listing.id));
+      isFavorite(user.uid, listing.id).then(v => { if (active) setFav(v); });
     }
+    return () => { active = false; };
   }, [user, listing]);
 
   useEffect(() => {
     if (!user || !listing || listing.ownerId === user.uid) return;
     const convId = makeConvId(listing.id!, user.uid, listing.ownerId!);
-    import('../../lib/localMessages').then(({ getConversationMessages }) => {
-      const msgs = getConversationMessages(convId);
-      setHasExistingConv(msgs.length > 0);
-    });
+    getConversationMessages(convId).then(msgs => setHasExistingConv(msgs.length > 0));
   }, [user, listing]);
 
   const isOwner = user && listing && user.uid === listing.ownerId;
 
-  const handleFavToggle = () => {
+  const handleFavToggle = async () => {
     if (!user) {
       showToast('Favorilere eklemek için lütfen giriş yapın.', 'info');
       return;
     }
     if (!listing?.id) return;
-    const isNowFav = toggleFavorite(user.uid, listing.id);
+    const isNowFav = await toggleFavorite(user.uid, listing.id);
     setFav(isNowFav);
     showToast(isNowFav ? 'Favorilere eklendi! ❤️' : 'Favorilerden çıkarıldı.', isNowFav ? 'success' : 'info');
   };
@@ -124,14 +138,14 @@ export default function ListingDetail() {
 
     try {
       const convId = makeConvId(listing.id!, user.uid, listing.ownerId);
-      sendMessage({
+      await sendMessage({
         conversationId: convId,
         listingId: listing.id!,
         listingTitle: listing.title,
         senderId: user.uid,
         senderEmail: user.email,
         receiverId: listing.ownerId,
-        receiverEmail: listing.ownerId.startsWith('demo') ? 'demo@firat.edu.tr' : listing.ownerId,
+        receiverEmail: listing.ownerEmail || (listing.ownerId.startsWith('demo') ? 'demo@firat.edu.tr' : listing.ownerId),
         text: msgText.trim(),
       });
 
@@ -155,7 +169,7 @@ export default function ListingDetail() {
     }
   };
 
-  const handleAddReview = (e: React.FormEvent) => {
+  const handleAddReview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
       showToast('Yorum yapmak için giriş yapmalısınız.', 'info');
@@ -164,19 +178,21 @@ export default function ListingDetail() {
     if (!commentInput.trim() || !listing?.ownerId) return;
 
     setSubmittingReview(true);
-    const newRev = addSellerReview({
-      sellerId: listing.ownerId,
-      reviewerId: user.uid,
-      reviewerEmail: user.email,
-      rating: ratingInput,
-      comment: commentInput.trim(),
-    });
-
-    setReviews(prev => [newRev, ...prev]);
-    setSellerRating(getSellerAverageRating(listing.ownerId));
-    setCommentInput('');
-    setSubmittingReview(false);
-    showToast('Değerlendirmeniz yayınlandı! ⭐', 'success');
+    try {
+      const newRev = await addSellerReview({
+        sellerId: listing.ownerId,
+        reviewerId: user.uid,
+        reviewerEmail: user.email,
+        rating: ratingInput,
+        comment: commentInput.trim(),
+      });
+      setReviews(prev => [newRev, ...prev]);
+      setSellerRating(await getSellerAverageRating(listing.ownerId));
+      setCommentInput('');
+      showToast('Değerlendirmeniz yayınlandı! ⭐', 'success');
+    } finally {
+      setSubmittingReview(false);
+    }
   };
 
   const handleSendReport = (e: React.FormEvent) => {
@@ -278,8 +294,8 @@ export default function ListingDetail() {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
 
-            {/* ── Üst: Görsel + Başlık (yan yana) ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '1.5rem' }}>
+            {/* ── Üst: Görsel + Başlık (yan yana; mobilde alt alta) ── */}
+            <div className="detail-media-grid">
 
               {/* Görsel galerisi */}
               <div className="card animate-fade-in" style={{ border: 'none', overflow: 'hidden', position: 'relative' }}>
@@ -384,8 +400,8 @@ export default function ListingDetail() {
                       <span style={{ fontWeight: 700, color: listing.isSold ? '#9CA3AF' : '#8B1A1A', fontSize: '1.1rem' }}>₺</span>
                     </div>
 
-                    {/* 📉 Fiyat Değişim Geçmişi Rozeti */}
-                    {listing.priceHistory && listing.priceHistory.length > 0 && (
+                    {/* 📉 Fiyat Değişim Geçmişi Rozeti — yalnızca güncel fiyat, son kayıttan düşükse */}
+                    {listing.priceHistory && listing.priceHistory.length > 0 && listing.priceHistory[0].price > listing.price && (
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#ECFDF5', border: '1px solid #A7F3D0', padding: '0.3rem 0.6rem', borderRadius: '0.375rem', color: '#047857', fontSize: '0.78rem', fontWeight: 700, width: 'fit-content' }}>
                         <span>📉 Fiyat Düşüşü:</span>
                         <span style={{ textDecoration: 'line-through', opacity: 0.8 }}>{listing.priceHistory[0].price} ₺</span>
@@ -406,7 +422,7 @@ export default function ListingDetail() {
                         {(listing.ownerId ?? '?')[0].toUpperCase()}
                       </div>
                       <span style={{ fontSize: '0.85rem', color: '#374151', fontWeight: 500 }}>
-                        {isOwner ? 'Siz' : (listing.ownerId?.startsWith('demo') ? 'demo@firat.edu.tr' : listing.ownerId)}
+                        {isOwner ? 'Siz' : (listing.ownerEmail || (listing.ownerId?.startsWith('demo') ? 'demo@firat.edu.tr' : listing.ownerId))}
                       </span>
                     </div>
                     {/* Yıldız Puanı */}

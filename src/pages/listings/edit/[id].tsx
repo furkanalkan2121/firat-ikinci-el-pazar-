@@ -21,7 +21,7 @@ async function compressToDataUrl(file: File): Promise<string> {
     const objectUrl = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(objectUrl);
-      const MAX = 1000;
+      const MAX = 900;
       let { width, height } = img;
       if (width > MAX) { height = Math.round((height * MAX) / width); width = MAX; }
       const canvas = document.createElement('canvas');
@@ -30,7 +30,7 @@ async function compressToDataUrl(file: File): Promise<string> {
       const ctx = canvas.getContext('2d');
       if (!ctx) return reject(new Error('Canvas başlatılamadı.'));
       ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.8));
+      resolve(canvas.toDataURL('image/jpeg', 0.7));
     };
     img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Resim okunamadı.')); };
     img.src = objectUrl;
@@ -131,6 +131,11 @@ export default function EditListing() {
     e.preventDefault();
     if (!title.trim()) { setIsError(true); setMessage('Başlık alanı zorunludur.'); return; }
 
+    const priceNum = price.trim() ? Number(price) : undefined;
+    if (priceNum !== undefined && (isNaN(priceNum) || priceNum < 0)) {
+      setIsError(true); setMessage('Lütfen geçerli bir fiyat girin (0 veya üzeri).'); return;
+    }
+
     setSubmitting(true);
     setMessage('');
 
@@ -142,10 +147,15 @@ export default function EditListing() {
 
       const updatedImages = [...existingImgs, ...addedDataUrls];
 
+      const totalBytes = updatedImages.reduce((s, u) => s + u.length, 0);
+      if (totalBytes > 900_000) {
+        throw new Error('Görseller çok büyük. Lütfen daha az sayıda veya daha küçük fotoğraf yükleyin.');
+      }
+
       await updateListing(id, {
         title: title.trim(),
         description: description.trim() || undefined,
-        price: price ? Number(price) : undefined,
+        price: priceNum,
         category: category || undefined,
         department: department !== 'Tüm Bölümler' ? department : undefined,
         isExchange,
@@ -229,6 +239,31 @@ export default function EditListing() {
                       {cat.emoji} {cat.label}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Takas / Değiş-Tokuş Seçenekleri */}
+              <div className="form-group">
+                <label className="form-label">Takas Durumu</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: '#FFFDF9', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #FDE68A' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: '#065F46' }}>
+                    <input
+                      type="checkbox"
+                      checked={allowTrade}
+                      onChange={e => setAllowTrade(e.target.checked)}
+                      style={{ accentColor: '#059669', width: 16, height: 16 }}
+                    />
+                    🤝 Ürün Nakit Satışın Yanında Takasa da Uygundur
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: '#8B1A1A' }}>
+                    <input
+                      type="checkbox"
+                      checked={isExchange}
+                      onChange={e => setIsExchange(e.target.checked)}
+                      style={{ accentColor: '#8B1A1A', width: 16, height: 16 }}
+                    />
+                    📚 Sadece Ders Kitabı / Materyal Ücretsiz Takas İlanıdır
+                  </label>
                 </div>
               </div>
 

@@ -4,9 +4,10 @@ import Link from 'next/link';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
 import {
-  getConversationMessages,
+  subscribeConversation,
   sendMessage,
   markConversationRead,
+  getOtherUidFromConvId,
   type Message,
 } from '../../lib/localMessages';
 import { FU_CAMPUS_LOCATIONS } from '../../lib/localStore';
@@ -63,18 +64,17 @@ export default function ConversationPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const loadMsgs = () => {
-    if (!convId) return;
-    setMessages(getConversationMessages(convId));
-  };
-
   useEffect(() => {
     if (loading) return;
     if (!user) { router.push('/auth/signin'); return; }
     if (!convId) return;
-    loadMsgs();
-    markConversationRead(convId, user.uid);
     setPageReady(true);
+    // Sohbeti canlı dinle — yeni mesajlar anında görünür
+    const unsub = subscribeConversation(convId, msgs => {
+      setMessages(msgs);
+      markConversationRead(convId, user.uid);
+    });
+    return () => unsub();
   }, [convId, user, loading]);
 
   useEffect(() => {
@@ -84,12 +84,18 @@ export default function ConversationPage() {
   const getReceiverInfo = () => {
     const other = messages.find(m => m.senderId !== user?.uid) ??
                   messages.find(m => m.receiverId !== user?.uid);
-    const receiverId    = other ? (other.senderId === user?.uid ? other.receiverId    : other.senderId)    : '';
-    const receiverEmail = other ? (other.senderId === user?.uid ? other.receiverEmail : other.senderEmail) : '';
+    let receiverId    = other ? (other.senderId === user?.uid ? other.receiverId    : other.senderId)    : '';
+    let receiverEmail = other ? (other.senderId === user?.uid ? other.receiverEmail : other.senderEmail) : '';
+
+    // Sohbet boşsa (hiç mesaj yok) alıcıyı convId'den çöz
+    if (!receiverId && user) {
+      receiverId = getOtherUidFromConvId(convId, user.uid);
+      if (receiverId.startsWith('demo')) receiverEmail = 'demo@firat.edu.tr';
+    }
     return { receiverId, receiverEmail };
   };
 
-  const handleSendText = (e: React.FormEvent) => {
+  const handleSendText = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newText.trim() || !user || !convId || sending) return;
 
@@ -97,20 +103,22 @@ export default function ConversationPage() {
     if (!receiverId) return;
 
     setSending(true);
-    sendMessage({
-      conversationId: convId,
-      listingId:     messages[0]?.listingId    ?? '',
-      listingTitle:  messages[0]?.listingTitle ?? '',
-      senderId:      user.uid,
-      senderEmail:   user.email,
-      receiverId,
-      receiverEmail,
-      text: newText.trim(),
-    });
-    setNewText('');
-    loadMsgs();
-    setSending(false);
-    textareaRef.current?.focus();
+    try {
+      await sendMessage({
+        conversationId: convId,
+        listingId:     messages[0]?.listingId    ?? '',
+        listingTitle:  messages[0]?.listingTitle ?? '',
+        senderId:      user.uid,
+        senderEmail:   user.email,
+        receiverId,
+        receiverEmail,
+        text: newText.trim(),
+      });
+      setNewText('');
+    } finally {
+      setSending(false);
+      textareaRef.current?.focus();
+    }
   };
 
   // Fotoğraf Gönderme
@@ -124,7 +132,7 @@ export default function ConversationPage() {
     try {
       setSending(true);
       const dataUrl = await compressImage(file);
-      sendMessage({
+      await sendMessage({
         conversationId: convId,
         listingId:     messages[0]?.listingId    ?? '',
         listingTitle:  messages[0]?.listingTitle ?? '',
@@ -135,7 +143,6 @@ export default function ConversationPage() {
         text: '📷 [Fotoğraf Gönderildi]',
         imageDataUrl: dataUrl,
       });
-      loadMsgs();
     } catch (err) {
       console.error(err);
     } finally {
@@ -145,12 +152,12 @@ export default function ConversationPage() {
   };
 
   // Buluşma Noktası Teklifi Gönderme
-  const handleSendLocationOffer = () => {
+  const handleSendLocationOffer = async () => {
     if (!user || !convId) return;
     const { receiverId, receiverEmail } = getReceiverInfo();
     if (!receiverId) return;
 
-    sendMessage({
+    await sendMessage({
       conversationId: convId,
       listingId:     messages[0]?.listingId    ?? '',
       listingTitle:  messages[0]?.listingTitle ?? '',
@@ -163,7 +170,6 @@ export default function ConversationPage() {
     });
 
     setShowLocationModal(false);
-    loadMsgs();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

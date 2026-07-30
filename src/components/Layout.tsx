@@ -16,15 +16,16 @@ export default function Layout({ children }: { children: ReactNode }) {
       return;
     }
 
-    const checkUnread = () => {
-      const count = getTotalUnread(user.uid);
+    const checkUnread = async () => {
+      const count = await getTotalUnread(user.uid);
       setUnreadCount(count);
     };
 
     checkUnread();
 
-    const interval = setInterval(checkUnread, 3000);
-    window.addEventListener('storage', checkUnread);
+    // Firestore okuma maliyetini düşük tutmak için 15 sn'de bir + olay tetiklemesiyle
+    const interval = setInterval(checkUnread, 15000);
+    window.addEventListener('fu_messages_updated', checkUnread);
 
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {});
@@ -32,7 +33,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener('storage', checkUnread);
+      window.removeEventListener('fu_messages_updated', checkUnread);
     };
   }, [user]);
 

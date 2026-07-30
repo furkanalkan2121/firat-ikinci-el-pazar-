@@ -23,7 +23,7 @@ async function compressToDataUrl(file: File): Promise<string> {
     const objectUrl = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(objectUrl);
-      const MAX = 1000;
+      const MAX = 900;
       let { width, height } = img;
       if (width > MAX) { height = Math.round((height * MAX) / width); width = MAX; }
       const canvas = document.createElement('canvas');
@@ -32,7 +32,7 @@ async function compressToDataUrl(file: File): Promise<string> {
       const ctx = canvas.getContext('2d');
       if (!ctx) return reject(new Error('Canvas başlatılamadı.'));
       ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.8));
+      resolve(canvas.toDataURL('image/jpeg', 0.7));
     };
     img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Resim okunamadı.')); };
     img.src = objectUrl;
@@ -104,6 +104,11 @@ export default function CreateListing() {
     e.preventDefault();
     if (!title.trim()) { setIsError(true); setMessage('Başlık alanı zorunludur.'); return; }
 
+    const priceNum = price.trim() ? Number(price) : undefined;
+    if (priceNum !== undefined && (isNaN(priceNum) || priceNum < 0)) {
+      setIsError(true); setMessage('Lütfen geçerli bir fiyat girin (0 veya üzeri).'); return;
+    }
+
     setSubmitting(true);
     setMessage('');
     setProgress(10);
@@ -115,6 +120,11 @@ export default function CreateListing() {
         setMessage('Resimler optimize ediliyor…');
         // Paralel sıkıştırma (Canvas, tamamen local)
         imageDataUrls = await Promise.all(files.map(f => compressToDataUrl(f)));
+        // Firestore doküman sınırı (~1MB) — toplam görsel boyutunu kontrol et
+        const totalBytes = imageDataUrls.reduce((s, u) => s + u.length, 0);
+        if (totalBytes > 900_000) {
+          throw new Error('Görseller çok büyük. Lütfen daha az sayıda veya daha küçük fotoğraf yükleyin.');
+        }
         setProgress(75);
       }
 
@@ -122,9 +132,10 @@ export default function CreateListing() {
       const newId = await addListing({
         title:       title.trim(),
         description: description.trim() || undefined,
-        price:       price ? Number(price) : undefined,
+        price:       priceNum,
         images:      imageDataUrls,
         ownerId:     user.uid,
+        ownerEmail:  user.email,
         category:    category || undefined,
         department:  department !== 'Tüm Bölümler' ? department : undefined,
         location:    location !== 'Tüm Kampüs Noktaları' ? location : undefined,

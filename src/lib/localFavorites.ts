@@ -1,60 +1,82 @@
 /**
  * localFavorites.ts
- * Kullanıcının favori ilanlarını localStorage üzerinde yöneten yardımcı katman.
+ * Favori ilanlar — Firebase Firestore tabanlı (hesaba bağlı, tüm cihazlarda ortak).
+ * Koleksiyon: favorites, doküman id: `${userId}__${listingId}`
  */
+import { db } from './firebase';
+import {
+  collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, where,
+} from 'firebase/firestore';
 
-const FAVORITES_KEY = 'fu_favorites';
+const COL = 'favorites';
+const favId = (userId: string, listingId: string) => `${userId}__${listingId}`;
 
-export function getFavorites(userId?: string): string[] {
-  if (typeof window === 'undefined' || !userId) return [];
+/** Header/bileşenlerin yenilenmesi için olay yay. */
+function emitUpdated() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('fu_favorites_updated'));
+}
+
+/** Kullanıcının favori ilan id'leri. */
+export async function getFavorites(userId?: string): Promise<string[]> {
+  if (!userId) return [];
   try {
-    const raw = localStorage.getItem(`${FAVORITES_KEY}_${userId}`);
-    return raw ? JSON.parse(raw) : [];
+    const snap = await getDocs(query(collection(db, COL), where('userId', '==', userId)));
+    return snap.docs.map(d => (d.data() as any).listingId as string);
   } catch {
     return [];
   }
 }
 
-export function isFavorite(userId: string | undefined, listingId: string): boolean {
+export async function isFavorite(userId: string | undefined, listingId: string): Promise<boolean> {
   if (!userId || !listingId) return false;
-  const favs = getFavorites(userId);
-  return favs.includes(listingId);
+  try {
+    const snap = await getDoc(doc(db, COL, favId(userId, listingId)));
+    return snap.exists();
+  } catch {
+    return false;
+  }
 }
 
-export function toggleFavorite(userId: string, listingId: string): boolean {
+/** Favoriyi aç/kapat. Dönen değer: artık favori mi? */
+export async function toggleFavorite(userId: string, listingId: string): Promise<boolean> {
   if (!userId || !listingId) return false;
-  const favs = getFavorites(userId);
-  const exists = favs.includes(listingId);
-  
-  let updated: string[];
+  const ref = doc(db, COL, favId(userId, listingId));
+  const exists = (await getDoc(ref)).exists();
   if (exists) {
-    updated = favs.filter(id => id !== listingId);
+    await deleteDoc(ref);
   } else {
-    updated = [...favs, listingId];
+    await setDoc(ref, { userId, listingId, createdAt: new Date().toISOString() });
   }
-  
-  localStorage.setItem(`${FAVORITES_KEY}_${userId}`, JSON.stringify(updated));
-  // Cross-component update trigger
-  window.dispatchEvent(new Event('fu_favorites_updated'));
+  emitUpdated();
   return !exists;
 }
 
-/** Bir ilanı favorileyen tüm kullanıcı ID'lerini döndür */
-export function getFavoriteUsersForListing(listingId: string): string[] {
-  if (typeof window === 'undefined' || !listingId) return [];
-  const users: string[] = [];
+/** Bir ilanı favorileyen tüm kullanıcı id'leri (fiyat düşüşü bildirimi için). */
+export async function getFavoriteUsersForListing(listingId: string): Promise<string[]> {
+  if (!listingId) return [];
   try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith(`${FAVORITES_KEY}_`)) {
-        const userId = key.replace(`${FAVORITES_KEY}_`, '');
-        const raw = localStorage.getItem(key);
-        const favs: string[] = raw ? JSON.parse(raw) : [];
-        if (favs.includes(listingId)) {
-          users.push(userId);
-        }
-      }
-    }
-  } catch {}
-  return users;
+    const snap = await getDocs(query(collection(db, COL), where('listingId', '==', listingId)));
+    return snap.docs.map(d => (d.data() as any).userId as string);
+  } catch {
+    return [];
+  }
+}
+
+/** Silinen bir ilanı favorilerden temizle. Başka kullanıcıların kayıtları
+ *  güvenlik kuralınca reddedilebilir; bu yüzden en iyi çaba (best-effort) yapılır. */
+export async function removeListingFromAllFavorites(listingId: string): Promise<void> {
+  if (!listingId) return;
+  try {
+    const snap = await getDocs(query(collection(db, COL), where('listingId', '==', listingId)));
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref).catch(() => {})));
+    emitUpdated();
+  } catch { /* yok say */ }
+}
+
+/** Bir kullanıcının tüm favorilerini sil (hesap silme için). */
+export async function clearUserFavorites(userId: string): Promise<void> {
+  if (!userId) return;
+  const snap = await getDocs(query(collection(db, COL), where('userId', '==', userId)));
+  await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+  emitUpdated();
 }

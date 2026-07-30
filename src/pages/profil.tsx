@@ -3,9 +3,15 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
-import { signOutLocal } from '../lib/localAuth';
+import { signOutUser, changeUserPassword, deleteCurrentUser, isAdminUser } from '../lib/auth';
 import { getUserListings, deleteListing, deleteUserAndListings, getUserMonthlyListingCount, type Listing } from '../lib/localStore';
-import { getUserConversations } from '../lib/localMessages';
+import { getUserConversations, deleteUserMessages } from '../lib/localMessages';
+import { clearUserFavorites } from '../lib/localFavorites';
+import { deleteUserReviews } from '../lib/localReviews';
+import { deleteUserReports } from '../lib/localReports';
+import { deleteUserSocialProfiles } from '../lib/localSocial';
+import { deleteUserNotifications } from '../lib/localNotifications';
+import { getAvatar, setAvatar, removeAvatar, compressAvatar } from '../lib/localProfile';
 import { useToast } from '../context/ToastContext';
 import { getSellerReviews, getSellerAverageRating, type Review } from '../lib/localReviews';
 
@@ -31,6 +37,8 @@ export default function ProfilePage() {
   const [monthlyCount,  setMonthlyCount]  = useState(0);
   const [pageReady,     setPageReady]     = useState(false);
   const [deletingId,    setDeletingId]    = useState<string | null>(null);
+  const [avatarUrl,     setAvatarUrl]     = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Şifre Değiştirme Formu Durumu
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -43,12 +51,41 @@ export default function ProfilePage() {
     if (loading) return;
     if (!user) { router.push('/auth/signin'); return; }
     getUserListings(user.uid).then(ls => setListings(ls));
-    setConvCount(getUserConversations(user.uid).length);
-    setReviews(getSellerReviews(user.uid));
-    setRating(getSellerAverageRating(user.uid));
-    setMonthlyCount(getUserMonthlyListingCount(user.uid));
+    getUserMonthlyListingCount(user.uid).then(setMonthlyCount);
+    getUserConversations(user.uid).then(cs => setConvCount(cs.length));
+    getSellerReviews(user.uid).then(setReviews);
+    getSellerAverageRating(user.uid).then(setRating);
+    setAvatarUrl(getAvatar(user.uid));
     setPageReady(true);
   }, [user, loading, router]);
+
+  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // aynı dosya tekrar seçilebilsin
+    if (!file || !user) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('Lütfen bir görsel dosyası seçin.', 'error');
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const dataUrl = await compressAvatar(file);
+      setAvatar(user.uid, dataUrl);
+      setAvatarUrl(dataUrl);
+      showToast('Profil fotoğrafınız güncellendi! 📸', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Fotoğraf yüklenemedi.', 'error');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleRemoveAvatar = () => {
+    if (!user) return;
+    removeAvatar(user.uid);
+    setAvatarUrl(null);
+    showToast('Profil fotoğrafı kaldırıldı.', 'info');
+  };
 
   const handleDelete = async (id: string, title: string) => {
     if (!window.confirm(`"${title}" silinsin mi?`)) return;
@@ -59,33 +96,47 @@ export default function ProfilePage() {
     showToast('İlan silindi.', 'info');
   };
 
-  const handleSignOut = () => {
-    signOutLocal();
-    window.dispatchEvent(new StorageEvent('storage', { key: 'fu_current_user' }));
+  const handleSignOut = async () => {
+    await signOutUser();
     showToast('Çıkış yapıldı.', 'info');
     router.push('/');
   };
 
   const handleDeleteAccount = async () => {
     if (!user) return;
-    const confirm1 = window.confirm('HESABINIZI SİLMEK İSTEDİĞİNİZE EMİN MİSİNİZ?\nTüm ilanlarınız ve profil verileriniz silinecektir.');
+    const confirm1 = window.confirm('HESABINIZI SİLMEK İSTEDİĞİNİZE EMİN MİSİNİZ?\nTüm ilanlarınız ve profil verileriniz kalıcı olarak silinecektir.');
     if (!confirm1) return;
 
-    const confirm2 = window.prompt('Onaylamak için lütfen "HESABIMI SİL" yazın:');
-    if (confirm2 !== 'HESABIMI SİL') {
-      showToast('Hesap silme işlemi iptal edildi.', 'info');
-      return;
-    }
+    // Firebase hesap silme için güvenlik gereği şifre ile yeniden doğrulama gerekir
+    const pwd = window.prompt('Güvenlik için lütfen şifrenizi girin:');
+    if (!pwd) { showToast('Hesap silme işlemi iptal edildi.', 'info'); return; }
 
-    await deleteUserAndListings(user.uid);
-    signOutLocal();
-    window.dispatchEvent(new StorageEvent('storage', { key: 'fu_current_user' }));
-    showToast('Hesabınız ve tüm verileriniz başarıyla silindi.', 'info');
-    router.push('/');
+    try {
+      // Önce Firestore ilanlarını (oturum açıkken) sil
+      await deleteUserAndListings(user.uid);
+      // Firestore'daki diğer kullanıcı verilerini temizle
+      await Promise.all([
+        clearUserFavorites(user.uid),
+        deleteUserMessages(user.uid),
+        deleteUserReviews(user.uid),
+        deleteUserNotifications(user.uid),
+      ]);
+      // Hâlâ yerel olan modüller (sonraki fazda taşınacak)
+      deleteUserReports(user.uid);
+      deleteUserSocialProfiles(user.uid);
+      removeAvatar(user.uid);
+      // Son olarak Firebase Auth hesabını sil (şifre ile yeniden doğrulama)
+      await deleteCurrentUser(pwd);
+      showToast('Hesabınız ve tüm verileriniz başarıyla silindi.', 'info');
+      router.push('/');
+    } catch (err: any) {
+      showToast(err.message || 'Hesap silinemedi.', 'error');
+    }
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return;
     if (newPassword.length < 6) {
       showToast('Yeni şifre en az 6 karakter olmalıdır.', 'error');
       return;
@@ -96,14 +147,18 @@ export default function ProfilePage() {
     }
 
     setPasswordSubmitting(true);
-    setTimeout(() => {
-      setPasswordSubmitting(false);
+    try {
+      await changeUserPassword(currentPassword, newPassword);
       setShowPasswordModal(false);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       showToast('Şifreniz başarıyla güncellendi! 🔑', 'success');
-    }, 800);
+    } catch (err: any) {
+      showToast(err.message || 'Şifre güncellenemedi.', 'error');
+    } finally {
+      setPasswordSubmitting(false);
+    }
   };
 
   if (loading || !pageReady) {
@@ -126,7 +181,7 @@ export default function ProfilePage() {
 
   const initials = user!.email[0].toUpperCase();
   const username = user!.email.split('@')[0];
-  const isAdmin = user && (user.email.includes('admin') || user.email === 'demo@firat.edu.tr');
+  const isAdmin = isAdminUser(user);
 
   return (
     <Layout>
@@ -140,31 +195,72 @@ export default function ProfilePage() {
             </div>
 
             <div style={{ padding: '0 1.75rem 1.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: -42, marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem' }}>
+              {/* Avatar — kapak üzerinde taşar, isim/butonlar aşağıda beyaz alanda kalır */}
+              <div style={{ marginTop: -46, marginBottom: '0.875rem' }}>
+                <div style={{ position: 'relative', width: 92, height: 92 }}>
                   <div style={{
-                    width: 84, height: 84, borderRadius: '50%',
-                    background: 'linear-gradient(135deg,#8B1A1A,#C9A227)',
+                    width: 92, height: 92, borderRadius: '50%',
+                    background: avatarUrl ? '#fff' : 'linear-gradient(135deg,#8B1A1A,#C9A227)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     color: '#fff', fontWeight: 900, fontSize: '2rem',
                     border: '4px solid #fff', boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-                    flexShrink: 0,
+                    overflow: 'hidden', flexShrink: 0,
                   }}>
-                    {initials}
+                    {avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={avatarUrl} alt="Profil fotoğrafı" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : initials}
                   </div>
-                  <div style={{ paddingBottom: '0.25rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <h1 style={{ fontSize: '1.4rem', fontWeight: 900, color: '#111827', letterSpacing: '-0.01em', margin: 0 }}>
-                        {username}
-                      </h1>
-                      {isAdmin && (
-                        <Link href="/admin" className="badge badge-red" style={{ textDecoration: 'none', fontSize: '0.7rem' }}>
-                          🛡️ Admin
-                        </Link>
-                      )}
-                    </div>
-                    <p style={{ color: '#6B7280', fontSize: '0.82rem', margin: 0 }}>{user!.email}</p>
+
+                  {/* Fotoğraf yükleme butonu (kamera) */}
+                  <label
+                    htmlFor="avatar-input"
+                    title="Profil fotoğrafı yükle"
+                    style={{
+                      position: 'absolute', bottom: 0, right: 0,
+                      width: 30, height: 30, borderRadius: '50%',
+                      background: '#8B1A1A', border: '2px solid #fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: uploadingAvatar ? 'wait' : 'pointer', fontSize: '0.8rem',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
+                    }}
+                  >
+                    {uploadingAvatar ? '…' : '📷'}
+                  </label>
+                  <input
+                    id="avatar-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarSelect}
+                    disabled={uploadingAvatar}
+                    style={{ display: 'none' }}
+                  />
+                </div>
+
+                {avatarUrl && (
+                  <button
+                    onClick={handleRemoveAvatar}
+                    style={{ marginTop: '0.5rem', background: 'none', border: 'none', color: '#9CA3AF', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline', boxShadow: 'none' }}
+                  >
+                    Fotoğrafı kaldır
+                  </button>
+                )}
+              </div>
+
+              {/* İsim + Aksiyon Butonları (beyaz alan) */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <h1 style={{ fontSize: '1.4rem', fontWeight: 900, color: '#111827', letterSpacing: '-0.01em', margin: 0 }}>
+                      {username}
+                    </h1>
+                    {isAdmin && (
+                      <Link href="/admin" className="badge badge-red" style={{ textDecoration: 'none', fontSize: '0.7rem' }}>
+                        🛡️ Admin
+                      </Link>
+                    )}
                   </div>
+                  <p style={{ color: '#6B7280', fontSize: '0.82rem', margin: '0.15rem 0 0' }}>{user!.email}</p>
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>

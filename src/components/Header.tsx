@@ -1,14 +1,14 @@
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
-import { signOutLocal } from '../lib/localAuth';
+import { signOutUser, isAdminUser } from '../lib/auth';
 import { useEffect, useState } from 'react';
 import { getTotalUnread } from '../lib/localMessages';
 import { getFavorites } from '../lib/localFavorites';
+import { getAvatar } from '../lib/localProfile';
 
 import {
   getUserNotifications,
-  getUnreadNotificationCount,
   markAllNotificationsAsRead,
   type AppNotification,
 } from '../lib/localNotifications';
@@ -16,7 +16,6 @@ import {
 export default function Header() {
   const { user } = useAuth();
   const router = useRouter();
-  const [, forceUpdate] = useState(0);
   const [unread, setUnread] = useState(0);
   const [favCount, setFavCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -25,6 +24,7 @@ export default function Header() {
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   // Dark mode başlatma
   useEffect(() => {
@@ -48,31 +48,38 @@ export default function Header() {
   };
 
   // Bildirim ve sayacı yükle
-  const updateCounts = () => {
-    if (!user) { setUnread(0); setFavCount(0); setUnreadNotifCount(0); return; }
-    setUnread(getTotalUnread(user.uid));
-    setFavCount(getFavorites(user.uid).length);
-    const userNotifs = getUserNotifications(user.uid);
-    setNotifications(userNotifs);
-    setUnreadNotifCount(getUnreadNotificationCount(user.uid));
+  const updateCounts = async () => {
+    if (!user) { setUnread(0); setFavCount(0); setUnreadNotifCount(0); setNotifications([]); setAvatarUrl(null); return; }
+    setAvatarUrl(getAvatar(user.uid));
+    const [totalUnread, favs, notifs] = await Promise.all([
+      getTotalUnread(user.uid),
+      getFavorites(user.uid),
+      getUserNotifications(user.uid),
+    ]);
+    setUnread(totalUnread);
+    setFavCount(favs.length);
+    setNotifications(notifs);
+    setUnreadNotifCount(notifs.filter(n => !n.read).length);
   };
 
   useEffect(() => {
     updateCounts();
     window.addEventListener('fu_favorites_updated', updateCounts);
     window.addEventListener('fu_notifications_updated', updateCounts);
+    window.addEventListener('fu_messages_updated', updateCounts);
+    window.addEventListener('fu_avatar_updated', updateCounts);
     return () => {
       window.removeEventListener('fu_favorites_updated', updateCounts);
       window.removeEventListener('fu_notifications_updated', updateCounts);
+      window.removeEventListener('fu_messages_updated', updateCounts);
+      window.removeEventListener('fu_avatar_updated', updateCounts);
     };
   }, [user, router.pathname]);
 
-  const handleSignOut = () => {
-    signOutLocal();
+  const handleSignOut = async () => {
     setMenuOpen(false);
     setMobileNavOpen(false);
-    forceUpdate(n => n + 1);
-    window.dispatchEvent(new StorageEvent('storage', { key: 'fu_current_user' }));
+    await signOutUser(); // AuthContext onAuthStateChanged ile güncellenir
     router.push('/');
   };
 
@@ -288,9 +295,13 @@ export default function Header() {
                 >
                   <div style={{
                     width: 28, height: 28, borderRadius: '50%', background: '#C9A227',
-                    color: '#6B1010', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    color: '#6B1010', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden',
                   }}>
-                    {user.email[0].toUpperCase()}
+                    {avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : user.email[0].toUpperCase()}
                   </div>
                 </button>
 
@@ -304,7 +315,7 @@ export default function Header() {
                     }}>
                       {[
                         { href: '/profil',       icon: '👤', label: 'Profilim' },
-                        ...(user && (user.email.includes('admin') || user.email === 'demo@firat.edu.tr') ? [{ href: '/admin', icon: '🛡️', label: 'Admin Paneli' }] : []),
+                        ...(isAdminUser(user) ? [{ href: '/admin', icon: '🛡️', label: 'Admin Paneli' }] : []),
                         { href: '/favorilerim',  icon: '❤️', label: 'Favorilerim' },
                         { href: '/listings/my',  icon: '📋', label: 'İlanlarım' },
                         { href: '/listings/create', icon: '➕', label: 'İlan Ver' },

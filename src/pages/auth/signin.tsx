@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
-import { signInLocal } from '../../lib/localAuth';
+import { signIn, resendVerification } from '../../lib/auth';
 
 export default function Signin() {
   const [email, setEmail]       = useState('');
@@ -11,30 +11,42 @@ export default function Signin() {
   const [isError, setIsError]   = useState(false);
   const [loading, setLoading]   = useState(false);
   const [showPass, setShowPass] = useState(false);
+  const [needsVerify, setNeedsVerify] = useState(false);
+  const [resending, setResending] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage('');
+    setNeedsVerify(false);
     try {
-      await signInLocal(email, password);
-      // AuthContext storage event'i dinleyerek güncellenecek
-      window.dispatchEvent(new StorageEvent('storage', { key: 'fu_current_user' }));
+      await signIn(email, password);
       setIsError(false);
       setMessage('Giriş başarılı! Yönlendiriliyorsunuz…');
-      setTimeout(() => router.push('/'), 800);
+      setTimeout(() => router.push('/'), 600);
     } catch (err: any) {
       setIsError(true);
       setMessage(err.message || 'Giriş sırasında bir hata oluştu.');
+      if (err?.code === 'auth/email-not-verified') setNeedsVerify(true);
     } finally {
       setLoading(false);
     }
   };
 
-  const fillDemo = () => {
-    setEmail('demo@firat.edu.tr');
-    setPassword('demo1234');
+  const handleResend = async () => {
+    setResending(true);
+    try {
+      await resendVerification(email, password);
+      setIsError(false);
+      setMessage('Doğrulama e-postası tekrar gönderildi. Lütfen gelen kutunuzu kontrol edin.');
+      setNeedsVerify(false);
+    } catch (err: any) {
+      setIsError(true);
+      setMessage(err.message || 'E-posta gönderilemedi.');
+    } finally {
+      setResending(false);
+    }
   };
 
   return (
@@ -58,31 +70,6 @@ export default function Signin() {
           </div>
 
           <div style={{ height: '3px', background: 'linear-gradient(90deg, transparent, #8B1A1A, #C9A227, transparent)', borderRadius: '2px', marginBottom: '1.75rem' }} />
-
-          {/* Demo kullanıcı kartı */}
-          <div
-            style={{
-              padding: '0.875rem 1rem', background: '#F0FDF4',
-              border: '1px solid #BBF7D0', borderRadius: '0.5rem',
-              marginBottom: '1.25rem', fontSize: '0.82rem',
-            }}
-          >
-            <div style={{ fontWeight: 700, color: '#166534', marginBottom: '0.3rem' }}>🧪 Demo Hesabı</div>
-            <div style={{ color: '#374151' }}>
-              <span style={{ fontFamily: 'monospace' }}>demo@firat.edu.tr</span> / <span style={{ fontFamily: 'monospace' }}>demo1234</span>
-            </div>
-            <button
-              type="button"
-              onClick={fillDemo}
-              style={{
-                marginTop: '0.5rem', background: '#166534', color: '#fff',
-                border: 'none', borderRadius: '4px', padding: '0.25rem 0.75rem',
-                fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-              }}
-            >
-              Otomatik Doldur
-            </button>
-          </div>
 
           <form onSubmit={handleSubmit}>
             {/* Email */}
@@ -125,6 +112,14 @@ export default function Signin() {
             {message && (
               <div className={`alert ${isError ? 'alert-error' : 'alert-success'}`} style={{ marginBottom: '1.125rem' }}>
                 {message}
+                {needsVerify && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <button type="button" onClick={handleResend} disabled={resending}
+                      style={{ background: 'none', border: 'none', color: '#8B1A1A', fontWeight: 700, cursor: 'pointer', padding: 0, textDecoration: 'underline', fontSize: '0.82rem', boxShadow: 'none' }}>
+                      {resending ? 'Gönderiliyor…' : 'Doğrulama e-postasını tekrar gönder'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

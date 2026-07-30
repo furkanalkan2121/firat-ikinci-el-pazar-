@@ -24,12 +24,16 @@ function ListingCard({ item }: { item: Listing }) {
   const [fav, setFav] = useState(false);
 
   useEffect(() => {
+    let active = true;
     if (user && item.id) {
-      setFav(isFavorite(user.uid, item.id));
+      isFavorite(user.uid, item.id).then(v => { if (active) setFav(v); });
+    } else {
+      setFav(false);
     }
+    return () => { active = false; };
   }, [user, item.id]);
 
-  const handleFavClick = (e: React.MouseEvent) => {
+  const handleFavClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (!user) {
@@ -37,7 +41,7 @@ function ListingCard({ item }: { item: Listing }) {
       return;
     }
     if (!item.id) return;
-    const isNowFav = toggleFavorite(user.uid, item.id);
+    const isNowFav = await toggleFavorite(user.uid, item.id);
     setFav(isNowFav);
     showToast(isNowFav ? 'Favorilere eklendi! ❤️' : 'Favorilerden çıkarıldı.', isNowFav ? 'success' : 'info');
   };
@@ -219,9 +223,9 @@ function ListingCard({ item }: { item: Listing }) {
                 const saved = localStorage.getItem('fu_compare_id');
                 if (!saved) {
                   localStorage.setItem('fu_compare_id', item.id!);
-                  alert(`"${item.title}" 1. karşılaştırma ilanı olarak seçildi. Şimdi 2. bir ilan seçin.`);
+                  showToast(`"${item.title}" 1. ilan olarak seçildi. Karşılaştırmak için 2. ilanı seçin. ⚖️`, 'info');
                 } else if (saved === item.id) {
-                  alert('Bu ilan zaten 1. olarak seçili!');
+                  showToast('Bu ilan zaten 1. sırada seçili. Farklı bir ilan seçin.', 'info');
                 } else {
                   localStorage.removeItem('fu_compare_id');
                   window.location.href = `/karsilastir?id1=${saved}&id2=${item.id}`;

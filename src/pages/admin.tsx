@@ -5,6 +5,7 @@ import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { getListings, deleteListing, type Listing } from '../lib/localStore';
 import { getReports, updateReportStatus, type Report } from '../lib/localReports';
+import { isAdminUser } from '../lib/auth';
 import { useToast } from '../context/ToastContext';
 
 export default function AdminPage() {
@@ -19,9 +20,8 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (loading) return;
-    // Basit Admin Yetki Kontrolü (demo admin veya admin e-postası)
-    const isAdmin = user && (user.email.includes('admin') || user.email === 'demo@firat.edu.tr');
-    if (!user || !isAdmin) {
+    // Admin yetki kontrolü — sabit beyaz liste (e-posta "admin" içermesi yetmez)
+    if (!user || !isAdminUser(user)) {
       showToast('Admin paneline erişim yetkiniz yok.', 'error');
       router.push('/');
       return;

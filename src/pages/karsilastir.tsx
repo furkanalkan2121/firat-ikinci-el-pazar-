@@ -96,10 +96,10 @@ export default function ComparePage() {
                   <tr style={{ borderBottom: '1px solid #F3F4F6' }}>
                     <td style={{ padding: '1rem', fontWeight: 700, color: '#374151' }}>Fiyat</td>
                     <td style={{ padding: '1rem', fontWeight: 800, color: '#8B1A1A', fontSize: '1.1rem' }}>
-                      {item1?.price !== undefined ? `${item1.price} ₺` : 'Fiyat Yok'}
+                      {item1?.price !== undefined ? `${item1.price.toLocaleString('tr-TR')} ₺` : 'Fiyat Yok'}
                     </td>
                     <td style={{ padding: '1rem', fontWeight: 800, color: '#8B1A1A', fontSize: '1.1rem' }}>
-                      {item2?.price !== undefined ? `${item2.price} ₺` : 'Fiyat Yok'}
+                      {item2?.price !== undefined ? `${item2.price.toLocaleString('tr-TR')} ₺` : 'Fiyat Yok'}
                     </td>
                   </tr>
 

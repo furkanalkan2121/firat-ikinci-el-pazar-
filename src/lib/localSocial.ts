@@ -91,3 +91,11 @@ export function deleteSocialProfile(id: string): void {
   localStorage.setItem(SOCIAL_KEY, JSON.stringify(items));
   window.dispatchEvent(new CustomEvent('fu_social_updated'));
 }
+
+/** Bir kullanıcının tüm sosyal/tanışma profillerini sil (hesap silme için). */
+export function deleteUserSocialProfiles(userId: string): void {
+  if (typeof window === 'undefined' || !userId) return;
+  const items = getSocialProfiles().filter(p => p.userId !== userId);
+  localStorage.setItem(SOCIAL_KEY, JSON.stringify(items));
+  window.dispatchEvent(new CustomEvent('fu_social_updated'));
+}

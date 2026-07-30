@@ -1,7 +1,12 @@
 /**
  * localNotifications.ts
- * Kullanıcı bildirimleri (Fiyat düşüşü, Favori ilan durumu vb.)
+ * Kullanıcı bildirimleri (fiyat düşüşü vb.) — Firebase Firestore tabanlı.
+ * Koleksiyon: notifications
  */
+import { db } from './firebase';
+import {
+  collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where,
+} from 'firebase/firestore';
 
 export type AppNotification = {
   id: string;
@@ -14,58 +19,51 @@ export type AppNotification = {
   read: boolean;
 };
 
-const NOTIFICATIONS_KEY = 'fu_notifications';
+const COL = 'notifications';
 
-function getAll(): AppNotification[] {
-  if (typeof window === 'undefined') return [];
-  const raw = localStorage.getItem(NOTIFICATIONS_KEY);
-  return raw ? JSON.parse(raw) : [];
+function emitUpdated() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('fu_notifications_updated'));
 }
 
-function saveAll(items: AppNotification[]): void {
-  localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(items));
-  window.dispatchEvent(new CustomEvent('fu_notifications_updated'));
-}
-
-export function getUserNotifications(userId: string): AppNotification[] {
-  return getAll()
-    .filter(n => n.userId === userId)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-}
-
-export function getUnreadNotificationCount(userId: string): number {
-  return getUserNotifications(userId).filter(n => !n.read).length;
-}
-
-export function addNotification(n: Omit<AppNotification, 'id' | 'createdAt' | 'read'>): void {
-  const items = getAll();
-  const newItem: AppNotification = {
-    ...n,
-    id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    createdAt: new Date().toISOString(),
-    read: false,
-  };
-  items.unshift(newItem);
-  saveAll(items);
-}
-
-export function markNotificationAsRead(notifId: string): void {
-  const items = getAll();
-  const index = items.findIndex(n => n.id === notifId);
-  if (index !== -1) {
-    items[index].read = true;
-    saveAll(items);
+export async function getUserNotifications(userId: string): Promise<AppNotification[]> {
+  if (!userId) return [];
+  try {
+    const snap = await getDocs(query(collection(db, COL), where('userId', '==', userId)));
+    return snap.docs
+      .map(d => ({ ...(d.data() as any), id: d.id } as AppNotification))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } catch {
+    return [];
   }
 }
 
-export function markAllNotificationsAsRead(userId: string): void {
-  const items = getAll();
-  let changed = false;
-  items.forEach(n => {
-    if (n.userId === userId && !n.read) {
-      n.read = true;
-      changed = true;
-    }
-  });
-  if (changed) saveAll(items);
+export async function getUnreadNotificationCount(userId: string): Promise<number> {
+  const items = await getUserNotifications(userId);
+  return items.filter(n => !n.read).length;
+}
+
+export async function addNotification(n: Omit<AppNotification, 'id' | 'createdAt' | 'read'>): Promise<void> {
+  const clean: Record<string, any> = { createdAt: new Date().toISOString(), read: false };
+  Object.entries(n).forEach(([k, v]) => { if (v !== undefined) clean[k] = v; });
+  await addDoc(collection(db, COL), clean);
+  emitUpdated();
+}
+
+export async function markNotificationAsRead(notifId: string): Promise<void> {
+  await updateDoc(doc(db, COL, notifId), { read: true });
+  emitUpdated();
+}
+
+export async function markAllNotificationsAsRead(userId: string): Promise<void> {
+  if (!userId) return;
+  const snap = await getDocs(query(collection(db, COL), where('userId', '==', userId)));
+  const unread = snap.docs.filter(d => !(d.data() as any).read);
+  await Promise.all(unread.map(d => updateDoc(d.ref, { read: true })));
+  if (unread.length) emitUpdated();
+}
+
+export async function deleteUserNotifications(userId: string): Promise<void> {
+  if (!userId) return;
+  const snap = await getDocs(query(collection(db, COL), where('userId', '==', userId)));
+  await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
 }

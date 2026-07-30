@@ -24,8 +24,10 @@ export default function MessagesInbox() {
   useEffect(() => {
     if (loading) return;
     if (!user) { router.push('/auth/signin'); return; }
-    setConversations(getUserConversations(user.uid));
-    setPageLoading(false);
+    getUserConversations(user.uid).then(cs => {
+      setConversations(cs);
+      setPageLoading(false);
+    });
   }, [user, loading, router]);
 
   if (loading || pageLoading) {

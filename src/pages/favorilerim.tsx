@@ -14,8 +14,7 @@ export default function FavoritesPage() {
 
   const loadFavorites = async () => {
     if (!user) return;
-    const favIds = getFavorites(user.uid);
-    const allListings = await getListings();
+    const [favIds, allListings] = await Promise.all([getFavorites(user.uid), getListings()]);
     const filtered = allListings.filter(item => item.id && favIds.includes(item.id));
     setFavoriteItems(filtered);
     setPageReady(true);
@@ -30,9 +29,9 @@ export default function FavoritesPage() {
     }
   }, [user, loading]);
 
-  const handleRemoveFavorite = (listingId: string, title: string) => {
+  const handleRemoveFavorite = async (listingId: string, title: string) => {
     if (!user) return;
-    toggleFavorite(user.uid, listingId);
+    await toggleFavorite(user.uid, listingId);
     setFavoriteItems(prev => prev.filter(item => item.id !== listingId));
     showToast(`"${title}" favorilerinizden çıkarıldı.`, 'info');
   };

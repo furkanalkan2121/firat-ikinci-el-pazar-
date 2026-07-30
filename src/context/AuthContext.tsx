@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { getCurrentUser, signOutLocal, type LocalUser } from '../lib/localAuth';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../lib/firebase';
+import { mapUser, type LocalUser } from '../lib/auth';
 
 type AuthState = { user: LocalUser | null; loading: boolean };
 
@@ -11,16 +13,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // localStorage'dan mevcut kullanıcıyı oku
-    setUser(getCurrentUser());
-    setLoading(false);
-
-    // storage event: başka sekme/pencerede oturum değişirse senkronize et
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'fu_current_user') setUser(getCurrentUser());
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    // Firebase oturum durumunu dinle — e-postası doğrulanmamış kullanıcı "giriş yapmamış" sayılır
+    const unsub = onAuthStateChanged(auth, fbUser => {
+      setUser(fbUser && fbUser.emailVerified ? mapUser(fbUser) : null);
+      setLoading(false);
+    });
+    return () => unsub();
   }, []);
 
   return (
@@ -31,13 +29,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export const useAuth = () => useContext(AuthContext);
-
-/** Oturumu kapat ve context'i güncelle (Header'dan çağrılır) */
-export function useSignOut() {
-  const [, forceUpdate] = useState(0);
-  return () => {
-    signOutLocal();
-    forceUpdate(n => n + 1);
-    window.dispatchEvent(new StorageEvent('storage', { key: 'fu_current_user' }));
-  };
-}

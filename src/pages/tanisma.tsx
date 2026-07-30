@@ -89,7 +89,7 @@ export default function TanismaPage() {
     setHobbies([]);
   };
 
-  const handleStartChat = (p: SocialProfile) => {
+  const handleStartChat = async (p: SocialProfile) => {
     if (!user) {
       showToast('Sohbet başlatmak için lütfen giriş yapın.', 'info');
       router.push('/auth/signin');
@@ -102,7 +102,7 @@ export default function TanismaPage() {
     }
 
     const convId = makeConvId('social', user.uid, p.userId);
-    sendMessage({
+    await sendMessage({
       conversationId: convId,
       listingId: 'social',
       listingTitle: `Tanışma: ${p.name} (${p.goal})`,

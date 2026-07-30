@@ -1,8 +1,15 @@
 /**
  * localStore.ts
- * Firebase Firestore yerine localStorage kullanan veri katmanı.
- * Sayfa yenilemede veriler kaybolmaz.
+ * İlan veri katmanı — Firebase Firestore tabanlı (gerçek, paylaşılan veri).
+ * Fonksiyon imzaları eski localStorage sürümüyle uyumlu tutulmuştur.
  */
+import { db } from './firebase';
+import {
+  collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
+  query, where, orderBy, increment,
+} from 'firebase/firestore';
+import { addNotification } from './localNotifications';
+import { getFavoriteUsersForListing, removeListingFromAllFavorites } from './localFavorites';
 
 export type Listing = {
   id?: string;
@@ -12,6 +19,7 @@ export type Listing = {
   priceHistory?: Array<{ price: number; date: string }>; // Fiyat değişim geçmişi
   images?: string[];
   ownerId?: string;
+  ownerEmail?: string;  // İlan sahibinin e-postası (mesajlaşma & satıcı gösterimi için)
   category?: string;
   department?: string; // FÜ Fakülte/Bölüm seçeneği
   location?: string;   // FÜ Kampüs Teslimat Noktası
@@ -86,286 +94,130 @@ export const INITIAL_ANNOUNCEMENTS: Announcement[] = [
   },
 ];
 
-const LISTINGS_KEY = 'fu_listings';
+const COL = 'listings';
 
-/* ── Placeholder görseller (SVG, internet gerektirmez) ── */
-function makePlaceholder(bg: string, emoji: string): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">
-    <rect width="400" height="300" fill="${bg}" rx="12"/>
-    <text x="200" y="155" text-anchor="middle" dominant-baseline="middle"
-      font-size="88" font-family="system-ui, sans-serif">${emoji}</text>
-  </svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+/** Bir Firestore dokümanını Listing'e çevir. */
+function toListing(id: string, data: any): Listing {
+  return { ...data, id } as Listing;
 }
 
-/* ── Sahte başlangıç verileri ── */
-const FAKE_LISTINGS: Listing[] = [
-  {
-    id: 'demo-1',
-    title: 'Calculus I & II El Yazısı Ders Notları',
-    description:
-      'Fırat Üniversitesi Mühendislik Fakültesi için hazırlanmış detaylı el yazısı calculus notları. Türev, integral, limit konuları eksiksiz. Çok temiz kullanılmış, hiç üstü çizili değil.',
-    price: 50,
-    images: [makePlaceholder('#FEF3C7', '📚')],
-    ownerId: 'demo-user',
-    category: 'Kitap & Ders Materyali',
-    createdAt: new Date(Date.now() - 1 * 86400000).toISOString(),
-  },
-  {
-    id: 'demo-2',
-    title: 'Lenovo ThinkPad E14 — i5 / 8GB / 512GB SSD',
-    description:
-      '2022 model. Intel i5-1135G7, 8 GB RAM, 512 GB NVMe SSD. Batarya kapasitesi %88. Kutusu ve orijinal şarj adaptörü mevcuttur. Çift ekran desteği var.',
-    price: 13500,
-    images: [makePlaceholder('#DBEAFE', '💻')],
-    ownerId: 'demo-user',
-    category: 'Elektronik',
-    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-  },
-  {
-    id: 'demo-3',
-    title: 'Tek Kişilik Yatak + Baza (Temiz)',
-    description:
-      'Yurt odasından çıkma, 90x190 cm. Ortopedik yay yok, düz sünger. Baza dahil. Elazığ içi kargo yapılabilir. Üst katta olduğu için yardımlı taşıma gerekir.',
-    price: 950,
-    images: [makePlaceholder('#F0FDF4', '🛋️')],
-    ownerId: 'demo-user2',
-    category: 'Mobilya & Ev Eşyası',
-    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
-  },
-  {
-    id: 'demo-4',
-    title: 'Python ile Veri Bilimi — O\'Reilly Orijinal',
-    description:
-      'Türkçe çeviri, 520 sayfa. NumPy, Pandas, Matplotlib konuları mükemmel anlatılmış. Üzerinde kalem işareti yok. Kapakta küçük bir çizik var, içi tertemiz.',
-    price: 120,
-    images: [makePlaceholder('#F5F3FF', '📖')],
-    ownerId: 'demo-user3',
-    category: 'Kitap & Ders Materyali',
-    createdAt: new Date(Date.now() - 4 * 86400000).toISOString(),
-  },
-  {
-    id: 'demo-5',
-    title: 'Casio FX-991ES Plus Bilimsel Hesap Makinesi',
-    description:
-      'Mühendislik sınavları için ideal. Matris, integral, türev, istatistik fonksiyonları mevcut. Pili yeni değiştirildi. Kılıfıyla birlikte.',
-    price: 280,
-    images: [makePlaceholder('#FFF7ED', '🔢')],
-    ownerId: 'demo-user2',
-    category: 'Elektronik',
-    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
-  },
-  {
-    id: 'demo-6',
-    title: 'Sony WH-1000XM4 Bluetooth Kulaklık',
-    description:
-      'Gürültü engelleme özellikli. Tam şarjda 30 saat kullanım. Kutusunda, 3.5mm kablosu ve uçak adaptörü dahil. Küçük çizikler var ama ses kalitesi mükemmel.',
-    price: 3200,
-    images: [makePlaceholder('#FDF2F8', '🎧')],
-    ownerId: 'demo-user4',
-    category: 'Elektronik',
-    createdAt: new Date(Date.now() - 6 * 86400000).toISOString(),
-  },
-  {
-    id: 'demo-7',
-    title: 'Çalışma Masası + Sandalye Seti',
-    description:
-      '120x60 cm MDF çalışma masası, yükseklik ayarlı sandalye. İkisi birlikte satılmaktadır. Toplu alıma indirim yapılır. Kampüse 5 dk. uzaklıkta teslim edilebilir.',
-    price: 750,
-    images: [makePlaceholder('#ECFDF5', '🪑')],
-    ownerId: 'demo-user3',
-    category: 'Mobilya & Ev Eşyası',
-    createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
-  },
-  {
-    id: 'demo-8',
-    title: 'Mühendislik 1. Sınıf Kitap Seti (8 Kitap)',
-    description:
-      'Fizik, Kimya, Matematik, Lojik Devreler, Bilgisayara Giriş ve daha fazlası. Hepsi orijinal baskı. Birkaçının üzerinde kurşun kalem notları var, silinebilir.',
-    price: 350,
-    images: [makePlaceholder('#FEF9C3', '📦')],
-    ownerId: 'demo-user5',
-    category: 'Kitap & Ders Materyali',
-    createdAt: new Date(Date.now() - 8 * 86400000).toISOString(),
-  },
-];
+/* ── Okuma ── */
 
-/* ── Başlangıç verilerini yükle (sadece ilk açılışta) ── */
-function initFakeData(): void {
-  if (typeof window === 'undefined') return;
-  const existing = localStorage.getItem(LISTINGS_KEY);
-  if (!existing) {
-    localStorage.setItem(LISTINGS_KEY, JSON.stringify(FAKE_LISTINGS));
-  }
+export async function getListings(): Promise<Listing[]> {
+  const q = query(collection(db, COL), orderBy('createdAt', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => toListing(d.id, d.data()));
 }
 
-/* ── Public API ── */
-
-export function getListings(): Promise<Listing[]> {
-  return new Promise(resolve => {
-    if (typeof window === 'undefined') return resolve([]);
-    initFakeData();
-    const raw = localStorage.getItem(LISTINGS_KEY);
-    const items: Listing[] = raw ? JSON.parse(raw) : [];
-    // En yeniden eskiye sırala
-    items.sort((a, b) =>
-      new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
-    );
-    resolve(items);
-  });
+export async function getListing(id: string): Promise<Listing | null> {
+  if (!id) return null;
+  const ref = doc(db, COL, id);
+  const snap = await getDoc(ref);
+  return snap.exists() ? toListing(snap.id, snap.data()) : null;
 }
 
-export function getUserMonthlyListingCount(userId: string): number {
-  if (typeof window === 'undefined' || !userId) return 0;
-  const raw = localStorage.getItem(LISTINGS_KEY);
-  const items: Listing[] = raw ? JSON.parse(raw) : [];
+export async function getUserListings(userId: string): Promise<Listing[]> {
+  if (!userId) return [];
+  // where + orderBy bileşik indeks gerektirmesin diye sıralama istemcide yapılır
+  const q = query(collection(db, COL), where('ownerId', '==', userId));
+  const snap = await getDocs(q);
+  return snap.docs
+    .map(d => toListing(d.id, d.data()))
+    .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+}
+
+/** İçinde bulunulan ay içinde kullanıcının açtığı ilan sayısı. */
+export async function getUserMonthlyListingCount(userId: string): Promise<number> {
+  if (!userId) return 0;
   const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-
+  const items = await getUserListings(userId);
   return items.filter(l => {
-    if (l.ownerId !== userId || !l.createdAt) return false;
+    if (!l.createdAt) return false;
     const d = new Date(l.createdAt);
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).length;
 }
 
-export function addListing(listing: Omit<Listing, 'id' | 'createdAt'>): Promise<string> {
-  return new Promise((resolve, reject) => {
-    initFakeData();
-    if (listing.ownerId) {
-      const monthlyCount = getUserMonthlyListingCount(listing.ownerId);
-      if (monthlyCount >= 10) {
-        return reject(new Error('Aylık ilan oluşturma limitine ulaştınız (Max 10 ilan/ay).'));
-      }
-    }
-    const raw = localStorage.getItem(LISTINGS_KEY);
-    const items: Listing[] = raw ? JSON.parse(raw) : [];
-    const id = `listing-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    items.unshift({ ...listing, id, viewsCount: 0, createdAt: new Date().toISOString() });
-    localStorage.setItem(LISTINGS_KEY, JSON.stringify(items));
-    resolve(id);
-  });
-}
+/* ── Yazma ── */
 
-export function incrementListingViews(id: string): void {
-  if (typeof window === 'undefined' || !id) return;
-  const raw = localStorage.getItem(LISTINGS_KEY);
-  const items: Listing[] = raw ? JSON.parse(raw) : [];
-  const index = items.findIndex(l => l.id === id);
-  if (index !== -1) {
-    items[index].viewsCount = (items[index].viewsCount || 0) + 1;
-    localStorage.setItem(LISTINGS_KEY, JSON.stringify(items));
+export async function addListing(listing: Omit<Listing, 'id' | 'createdAt'>): Promise<string> {
+  if (listing.ownerId) {
+    const monthlyCount = await getUserMonthlyListingCount(listing.ownerId);
+    if (monthlyCount >= 10) {
+      throw new Error('Aylık ilan oluşturma limitine ulaştınız (Max 10 ilan/ay).');
+    }
   }
+  // undefined alanları Firestore kabul etmez — temizle
+  const clean: Record<string, any> = { viewsCount: 0, createdAt: new Date().toISOString() };
+  Object.entries(listing).forEach(([k, v]) => { if (v !== undefined) clean[k] = v; });
+  const ref = await addDoc(collection(db, COL), clean);
+  return ref.id;
 }
 
-export function deleteUserAndListings(userId: string): Promise<void> {
-  return new Promise(resolve => {
-    if (typeof window === 'undefined' || !userId) return resolve();
-    const raw = localStorage.getItem(LISTINGS_KEY);
-    const items: Listing[] = raw ? JSON.parse(raw) : [];
-    const filtered = items.filter(l => l.ownerId !== userId);
-    localStorage.setItem(LISTINGS_KEY, JSON.stringify(filtered));
-    resolve();
-  });
+export async function updateListing(id: string, patch: Partial<Listing>): Promise<void> {
+  const ref = doc(db, COL, id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const current = snap.data() as Listing;
+  const history = current.priceHistory || [];
+
+  // Fiyat düştüyse geçmişe ekle ve favorileyenlere bildirim gönder
+  if (patch.price !== undefined && current.price !== undefined && patch.price < current.price) {
+    history.unshift({ price: current.price, date: new Date().toISOString() });
+    const favUsers = await getFavoriteUsersForListing(id);
+    await Promise.all(favUsers.map(uid =>
+      addNotification({
+        userId: uid,
+        title: '📉 Favorinizde Fiyat Düşüşü!',
+        message: `Favorilediğiniz "${current.title}" ilanının fiyatı ${current.price} ₺ yerine ${patch.price} ₺'ye düştü!`,
+        listingId: id,
+        type: 'price_drop',
+      })
+    ));
+  }
+
+  const clean: Record<string, any> = { priceHistory: history };
+  Object.entries(patch).forEach(([k, v]) => { if (v !== undefined) clean[k] = v; });
+  await updateDoc(ref, clean);
 }
 
-export function deleteListing(id: string): Promise<void> {
-  return new Promise(resolve => {
-    const raw = localStorage.getItem(LISTINGS_KEY);
-    const items: Listing[] = raw ? JSON.parse(raw) : [];
-    localStorage.setItem(LISTINGS_KEY, JSON.stringify(items.filter(l => l.id !== id)));
-    resolve();
-  });
+export async function incrementListingViews(id: string): Promise<void> {
+  if (!id) return;
+  try {
+    await updateDoc(doc(db, COL, id), { viewsCount: increment(1) });
+  } catch { /* görüntülenme sayımı kritik değil */ }
 }
 
-export function getListing(id: string): Promise<Listing | null> {
-  return new Promise(resolve => {
-    if (typeof window === 'undefined') return resolve(null);
-    initFakeData();
-    const raw = localStorage.getItem(LISTINGS_KEY);
-    const items: Listing[] = raw ? JSON.parse(raw) : [];
-    resolve(items.find(l => l.id === id) ?? null);
-  });
+export async function toggleFeaturedListing(id: string): Promise<boolean> {
+  const ref = doc(db, COL, id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return false;
+  const newStatus = !(snap.data() as Listing).isFeatured;
+  await updateDoc(ref, { isFeatured: newStatus });
+  return newStatus;
 }
 
-export function getUserListings(userId: string): Promise<Listing[]> {
-  return new Promise(resolve => {
-    if (typeof window === 'undefined') return resolve([]);
-    initFakeData();
-    const raw = localStorage.getItem(LISTINGS_KEY);
-    const items: Listing[] = raw ? JSON.parse(raw) : [];
-    resolve(
-      items
-        .filter(l => l.ownerId === userId)
-        .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
-    );
-  });
+export async function toggleListingSold(id: string): Promise<boolean> {
+  const ref = doc(db, COL, id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error('İlan bulunamadı.');
+  const newStatus = !(snap.data() as Listing).isSold;
+  await updateDoc(ref, { isSold: newStatus });
+  return newStatus;
 }
 
-import { addNotification } from './localNotifications';
-import { getFavoriteUsersForListing } from './localFavorites';
+export async function deleteListing(id: string): Promise<void> {
+  await deleteDoc(doc(db, COL, id));
+  await removeListingFromAllFavorites(id); // favori kayıtlarını da temizle
+}
 
-export function updateListing(id: string, patch: Partial<Listing>): Promise<void> {
-  return new Promise(resolve => {
-    const raw = localStorage.getItem(LISTINGS_KEY);
-    const items: Listing[] = raw ? JSON.parse(raw) : [];
-    const index = items.findIndex(l => l.id === id);
-    if (index !== -1) {
-      const current = items[index];
-      const history = current.priceHistory || [];
-
-      // Fiyat düştüyse favorileyen kullanıcılara bildirim gönder
-      if (patch.price !== undefined && current.price !== undefined && patch.price < current.price) {
-        history.unshift({
-          price: current.price,
-          date: new Date().toISOString(),
-        });
-
-        const favUsers = getFavoriteUsersForListing(id);
-        favUsers.forEach(uid => {
-          addNotification({
-            userId: uid,
-            title: '📉 Favorinizde Fiyat Düşüşü!',
-            message: `Favorilediğiniz "${current.title}" ilanının fiyatı ${current.price} ₺ yerine ${patch.price} ₺'ye düştü!`,
-            listingId: id,
-            type: 'price_drop',
-          });
-        });
-      }
-
-      items[index] = { ...current, ...patch, priceHistory: history };
-      localStorage.setItem(LISTINGS_KEY, JSON.stringify(items));
+export async function deleteUserAndListings(userId: string): Promise<void> {
+  if (!userId) return;
+  const items = await getUserListings(userId);
+  await Promise.all(items.map(async l => {
+    if (l.id) {
+      await deleteDoc(doc(db, COL, l.id));
+      await removeListingFromAllFavorites(l.id);
     }
-    resolve();
-  });
-}
-
-/** Vitrinde Öne Çıkar / İğnele */
-export function toggleFeaturedListing(id: string): Promise<boolean> {
-  return new Promise(resolve => {
-    const raw = localStorage.getItem(LISTINGS_KEY);
-    const items: Listing[] = raw ? JSON.parse(raw) : [];
-    const index = items.findIndex(l => l.id === id);
-    let newStatus = false;
-    if (index !== -1) {
-      newStatus = !items[index].isFeatured;
-      items[index].isFeatured = newStatus;
-      localStorage.setItem(LISTINGS_KEY, JSON.stringify(items));
-    }
-    resolve(newStatus);
-  });
-}
-
-export function toggleListingSold(id: string): Promise<boolean> {
-  return new Promise((resolve, reject) => {
-    const raw = localStorage.getItem(LISTINGS_KEY);
-    const items: Listing[] = raw ? JSON.parse(raw) : [];
-    const index = items.findIndex(l => l.id === id);
-    if (index === -1) return reject(new Error('İlan bulunamadı.'));
-    const newStatus = !items[index].isSold;
-    items[index].isSold = newStatus;
-    localStorage.setItem(LISTINGS_KEY, JSON.stringify(items));
-    resolve(newStatus);
-  });
+  }));
 }

@@ -328,3 +328,30 @@ select {
   letter-spacing: -0.03em;
   flex-shrink: 0;
 }
+
+/* ══════════════════════════════════════════
+   Responsive / Mobil Uyumluluk
+   ══════════════════════════════════════════ */
+
+/* Yatay taşmayı engelle (mobilde sağa kayma olmasın) */
+* { min-width: 0; }
+img, video, svg { max-width: 100%; }
+
+/* İlan detayı: görsel + bilgi yan yana; mobilde alt alta */
+.detail-media-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+/* Tablet ve altı: iki sütunlu yerleşimleri tek sütuna indir */
+@media (max-width: 768px) {
+  .detail-media-grid { grid-template-columns: 1fr; }
+}
+
+/* Küçük ekran ince ayarları */
+@media (max-width: 640px) {
+  .page-container { padding: 0 1rem; }
+  .btn-lg { padding: 0.75rem 1.25rem; font-size: 0.95rem; }
+  .card:hover { transform: none; } /* dokunmatik cihazlarda zıplama olmasın */
+}
