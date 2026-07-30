@@ -17,6 +17,7 @@ import { isFavorite, toggleFavorite } from '../../lib/localFavorites';
 import { useToast } from '../../context/ToastContext';
 import { getSellerReviews, addSellerReview, getSellerAverageRating, type Review } from '../../lib/localReviews';
 import { addReport, type ReportReason } from '../../lib/localReports';
+import { useAuthGate } from '../../lib/authGate';
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -41,6 +42,7 @@ export default function ListingDetail() {
   const { id }   = router.query as { id: string };
   const { user } = useAuth();
   const { showToast } = useToast();
+  const requireAuth = useAuthGate();
 
   const [listing,          setListing]          = useState<Listing | null>(null);
   const [pageLoading,      setPageLoading]      = useState(true);
@@ -112,11 +114,8 @@ export default function ListingDetail() {
   const isOwner = user && listing && user.uid === listing.ownerId;
 
   const handleFavToggle = async () => {
-    if (!user) {
-      showToast('Favorilere eklemek için lütfen giriş yapın.', 'info');
-      return;
-    }
-    if (!listing?.id) return;
+    if (!requireAuth('Favorilere eklemek için lütfen giriş yapın.')) return;
+    if (!user || !listing?.id) return;
     const isNowFav = await toggleFavorite(user.uid, listing.id);
     setFav(isNowFav);
     showToast(isNowFav ? 'Favorilere eklendi! ❤️' : 'Favorilerden çıkarıldı.', isNowFav ? 'success' : 'info');
@@ -171,11 +170,8 @@ export default function ListingDetail() {
 
   const handleAddReview = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) {
-      showToast('Yorum yapmak için giriş yapmalısınız.', 'info');
-      return;
-    }
-    if (!commentInput.trim() || !listing?.ownerId) return;
+    if (!requireAuth('Yorum yapmak için lütfen giriş yapın.')) return;
+    if (!user || !commentInput.trim() || !listing?.ownerId) return;
 
     setSubmittingReview(true);
     try {
@@ -197,11 +193,8 @@ export default function ListingDetail() {
 
   const handleSendReport = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) {
-      showToast('Şikayet bildirmek için giriş yapmalısınız.', 'info');
-      return;
-    }
-    if (!listing?.id) return;
+    if (!requireAuth('Şikayet bildirmek için lütfen giriş yapın.')) return;
+    if (!user || !listing?.id) return;
 
     setSubmittingReport(true);
     addReport({

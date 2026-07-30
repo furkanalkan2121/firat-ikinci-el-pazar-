@@ -10,10 +10,12 @@ import {
   type CourseNote,
 } from '../lib/localNotes';
 import { FU_FACULTIES } from '../lib/localStore';
+import { useAuthGate } from '../lib/authGate';
 
 export default function NotlarPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const requireAuth = useAuthGate();
 
   const [notes, setNotes] = useState<CourseNote[]>([]);
   const [selectedDept, setSelectedDept] = useState('Tüm Bölümler');
@@ -63,6 +65,7 @@ export default function NotlarPage() {
   };
 
   const handleDownload = (n: CourseNote) => {
+    if (!requireAuth('Not indirmek için lütfen giriş yapın.')) return;
     incrementNoteDownload(n.id);
     showToast(`"${n.courseName}" notu indiriliyor… 📥`, 'success');
   };
@@ -98,10 +101,7 @@ export default function NotlarPage() {
 
             <button
               onClick={() => {
-                if (!user) {
-                  showToast('Ders notu yüklemek için giriş yapmalısınız.', 'info');
-                  return;
-                }
+                if (!requireAuth('Ders notu yüklemek için lütfen giriş yapın.')) return;
                 setShowModal(true);
               }}
               className="btn btn-gold"

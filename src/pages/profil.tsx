@@ -9,7 +9,7 @@ import { getUserConversations, deleteUserMessages } from '../lib/localMessages';
 import { clearUserFavorites } from '../lib/localFavorites';
 import { deleteUserReviews } from '../lib/localReviews';
 import { deleteUserReports } from '../lib/localReports';
-import { deleteUserSocialProfiles } from '../lib/localSocial';
+import { deleteUserSocial } from '../lib/localSocial';
 import { deleteUserNotifications } from '../lib/localNotifications';
 import { getAvatar, setAvatar, removeAvatar, compressAvatar } from '../lib/localProfile';
 import { useToast } from '../context/ToastContext';
@@ -120,10 +120,10 @@ export default function ProfilePage() {
         deleteUserMessages(user.uid),
         deleteUserReviews(user.uid),
         deleteUserNotifications(user.uid),
+        deleteUserSocial(user.uid),
       ]);
       // Hâlâ yerel olan modüller (sonraki fazda taşınacak)
       deleteUserReports(user.uid);
-      deleteUserSocialProfiles(user.uid);
       removeAvatar(user.uid);
       // Son olarak Firebase Auth hesabını sil (şifre ile yeniden doğrulama)
       await deleteCurrentUser(pwd);

@@ -9,10 +9,12 @@ import {
   addMealRating,
   type MealRating,
 } from '../lib/localFood';
+import { useAuthGate } from '../lib/authGate';
 
 export default function YemekhanePage() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const requireAuth = useAuthGate();
 
   const [ratings, setRatings] = useState<MealRating[]>([]);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
@@ -31,11 +33,8 @@ export default function YemekhanePage() {
 
   const handleRatingSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) {
-      showToast('Yorum yapmak için giriş yapmalısınız.', 'info');
-      return;
-    }
-    if (!comment.trim()) return;
+    if (!requireAuth('Yorum yapmak için lütfen giriş yapın.')) return;
+    if (!comment.trim() || !user) return;
 
     addMealRating({
       userId: user.uid,

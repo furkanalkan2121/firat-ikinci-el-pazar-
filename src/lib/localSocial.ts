@@ -1,101 +1,164 @@
 /**
  * localSocial.ts
- * Fırat Üniversitesi Öğrenci Tanışma & Sosyal Ağ Veri Katmanı
+ * Kampüs Tanışma / Sosyal ağ — Firebase Firestore tabanlı (gerçek, paylaşılan).
+ * Koleksiyonlar:
+ *   socialProfiles  (docId = uid) — kullanıcı başına TEK profil
+ *   socialLikes     (docId = `${fromUid}__${toUid}`) — beğeniler; çift yönlü = eşleşme
+ *   socialBlocks    (docId = `${blockerUid}__${blockedUid}`)
+ *   socialReports   (auto id)
  */
+import { db } from './firebase';
+import {
+  collection, doc, getDoc, getDocs, setDoc, deleteDoc, addDoc, query, where,
+} from 'firebase/firestore';
+
+export type SocialGoal =
+  | 'Ders Çalışma 📚' | 'Proje Ekibi 💻' | 'Ev / Oda Arkadaşı 🏠'
+  | 'Spor & Aktivite ⚽' | 'Kahve & Sohbet ☕' | 'Diğer';
 
 export type SocialProfile = {
-  id: string;
+  id: string;        // = userId
   userId: string;
   userEmail: string;
   name: string;
   department: string;
-  grade: string; // 1. Sınıf, 2. Sınıf vb.
-  goal: 'Ders Çalışma 📚' | 'Proje Ekibi 💻' | 'Ev / Oda Arkadaşı 🏠' | 'Spor & Aktivite ⚽' | 'Kahve & Sohbet ☕' | 'Diğer';
+  grade: string;
+  goal: SocialGoal | string;
   bio: string;
   hobbies: string[];
+  instagram?: string;
+  avatar?: string;   // sıkıştırılmış data URL
   createdAt: string;
+  updatedAt?: string;
 };
 
-const SOCIAL_KEY = 'fu_social_profiles';
+const PROFILES = 'socialProfiles';
+const LIKES    = 'socialLikes';
+const BLOCKS   = 'socialBlocks';
+const REPORTS  = 'socialReports';
 
-const FAKE_PROFILES: SocialProfile[] = [
-  {
-    id: 'soc-1',
-    userId: 'demo-user2',
-    userEmail: 'ahmet.yazilim@firat.edu.tr',
-    name: 'Ahmet Y.',
-    department: 'Yazılım Mühendisliği',
-    grade: '3. Sınıf',
-    goal: 'Proje Ekibi 💻',
-    bio: 'Python ve React ile ilgileniyorum. Bitirme projesi ve hackathonlar için ekip arkadaşı arıyorum!',
-    hobbies: ['Kodlama', 'Satranç', 'Valorant'],
-    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-  },
-  {
-    id: 'soc-2',
-    userId: 'demo-user3',
-    userEmail: 'zeynep.tip@firat.edu.tr',
-    name: 'Zeynep K.',
-    department: 'Tıp Fakültesi',
-    grade: '2. Sınıf',
-    goal: 'Ders Çalışma 📚',
-    bio: 'Kütüphanede Anatomi ve Biyokimya derslerine birlikte çalışabileceğimiz düzenli arkadaş arıyorum.',
-    hobbies: ['Kitap Okuma', 'Filtre Kahve', 'Müzik'],
-    createdAt: new Date(Date.now() - 4 * 86400000).toISOString(),
-  },
-  {
-    id: 'soc-3',
-    userId: 'demo-user4',
-    userEmail: 'mehmet.iibf@firat.edu.tr',
-    name: 'Mehmet A.',
-    department: 'İktisadi ve İdari Bilimler Fakültesi',
-    grade: '4. Sınıf',
-    goal: 'Spor & Aktivite ⚽',
-    bio: 'Haftalık halı saha maçlarına veya akşam yürüyüşlerine katılabilecek arkadaşlar yazabilir.',
-    hobbies: ['Futbol', 'Yüzme', 'Kamp'],
-    createdAt: new Date(Date.now() - 6 * 86400000).toISOString(),
-  },
-];
+function emit() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('fu_social_updated'));
+}
 
-function initFakeSocial(): void {
-  if (typeof window === 'undefined') return;
-  if (!localStorage.getItem(SOCIAL_KEY)) {
-    localStorage.setItem(SOCIAL_KEY, JSON.stringify(FAKE_PROFILES));
+/* ── Profiller ── */
+
+export async function getSocialProfiles(): Promise<SocialProfile[]> {
+  try {
+    const snap = await getDocs(collection(db, PROFILES));
+    return snap.docs
+      .map(d => ({ ...(d.data() as any), id: d.id } as SocialProfile))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } catch {
+    return [];
   }
 }
 
-export function getSocialProfiles(): SocialProfile[] {
-  if (typeof window === 'undefined') return [];
-  initFakeSocial();
-  const raw = localStorage.getItem(SOCIAL_KEY);
-  const items: SocialProfile[] = raw ? JSON.parse(raw) : [];
-  return items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+export async function getMyProfile(uid: string): Promise<SocialProfile | null> {
+  if (!uid) return null;
+  const snap = await getDoc(doc(db, PROFILES, uid));
+  return snap.exists() ? ({ ...(snap.data() as any), id: snap.id } as SocialProfile) : null;
 }
 
-export function addSocialProfile(profile: Omit<SocialProfile, 'id' | 'createdAt'>): SocialProfile {
-  initFakeSocial();
-  const items = getSocialProfiles();
-  const newProfile: SocialProfile = {
-    ...profile,
-    id: `soc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    createdAt: new Date().toISOString(),
+/** Kullanıcının profilini oluştur veya güncelle (docId = uid ⇒ tek profil). */
+export async function upsertSocialProfile(
+  uid: string,
+  data: Omit<SocialProfile, 'id' | 'userId' | 'createdAt' | 'updatedAt'>,
+): Promise<void> {
+  const ref = doc(db, PROFILES, uid);
+  const existing = await getDoc(ref);
+  const clean: Record<string, any> = {
+    userId: uid,
+    updatedAt: new Date().toISOString(),
+    createdAt: existing.exists() ? (existing.data() as any).createdAt : new Date().toISOString(),
   };
-  items.unshift(newProfile);
-  localStorage.setItem(SOCIAL_KEY, JSON.stringify(items));
-  window.dispatchEvent(new CustomEvent('fu_social_updated'));
-  return newProfile;
+  Object.entries(data).forEach(([k, v]) => { if (v !== undefined) clean[k] = v; });
+  await setDoc(ref, clean, { merge: true });
+  emit();
 }
 
-export function deleteSocialProfile(id: string): void {
-  const items = getSocialProfiles().filter(p => p.id !== id);
-  localStorage.setItem(SOCIAL_KEY, JSON.stringify(items));
-  window.dispatchEvent(new CustomEvent('fu_social_updated'));
+export async function deleteMyProfile(uid: string): Promise<void> {
+  if (!uid) return;
+  await deleteDoc(doc(db, PROFILES, uid));
+  emit();
 }
 
-/** Bir kullanıcının tüm sosyal/tanışma profillerini sil (hesap silme için). */
-export function deleteUserSocialProfiles(userId: string): void {
-  if (typeof window === 'undefined' || !userId) return;
-  const items = getSocialProfiles().filter(p => p.userId !== userId);
-  localStorage.setItem(SOCIAL_KEY, JSON.stringify(items));
-  window.dispatchEvent(new CustomEvent('fu_social_updated'));
+/* ── Beğeni / Eşleşme ── */
+
+const likeId = (from: string, to: string) => `${from}__${to}`;
+
+/** Birini beğen. Karşı taraf da beğendiyse eşleşme oluşur. */
+export async function likeUser(from: string, to: string): Promise<{ matched: boolean }> {
+  if (!from || !to || from === to) return { matched: false };
+  await setDoc(doc(db, LIKES, likeId(from, to)), { fromUid: from, toUid: to, createdAt: new Date().toISOString() });
+  const reciprocal = await getDoc(doc(db, LIKES, likeId(to, from)));
+  emit();
+  return { matched: reciprocal.exists() };
+}
+
+export async function unlikeUser(from: string, to: string): Promise<void> {
+  if (!from || !to) return;
+  await deleteDoc(doc(db, LIKES, likeId(from, to)));
+  emit();
+}
+
+/** Benim beğendiklerim (toUid listesi). */
+export async function getMyLikeTargets(uid: string): Promise<string[]> {
+  if (!uid) return [];
+  const snap = await getDocs(query(collection(db, LIKES), where('fromUid', '==', uid)));
+  return snap.docs.map(d => (d.data() as any).toUid as string);
+}
+
+/** Beni beğenenler (fromUid listesi). */
+export async function getLikedMe(uid: string): Promise<string[]> {
+  if (!uid) return [];
+  const snap = await getDocs(query(collection(db, LIKES), where('toUid', '==', uid)));
+  return snap.docs.map(d => (d.data() as any).fromUid as string);
+}
+
+/** Karşılıklı beğeni = eşleşme (uid listesi). */
+export async function getMatches(uid: string): Promise<string[]> {
+  const [mine, theirs] = await Promise.all([getMyLikeTargets(uid), getLikedMe(uid)]);
+  const set = new Set(theirs);
+  return mine.filter(u => set.has(u));
+}
+
+/* ── Engelle / Şikayet ── */
+
+const blockId = (blocker: string, blocked: string) => `${blocker}__${blocked}`;
+
+export async function blockUser(blocker: string, blocked: string): Promise<void> {
+  if (!blocker || !blocked || blocker === blocked) return;
+  await setDoc(doc(db, BLOCKS, blockId(blocker, blocked)), { blocker, blocked, createdAt: new Date().toISOString() });
+  // Engelleyince beğeniyi de kaldır
+  await deleteDoc(doc(db, LIKES, likeId(blocker, blocked))).catch(() => {});
+  emit();
+}
+
+export async function getBlockedByMe(uid: string): Promise<string[]> {
+  if (!uid) return [];
+  const snap = await getDocs(query(collection(db, BLOCKS), where('blocker', '==', uid)));
+  return snap.docs.map(d => (d.data() as any).blocked as string);
+}
+
+export async function reportProfile(reporterUid: string, targetUid: string, reason: string): Promise<void> {
+  await addDoc(collection(db, REPORTS), {
+    reporterUid, targetUid, reason, createdAt: new Date().toISOString(), status: 'pending',
+  });
+}
+
+/* ── Hesap silme temizliği ── */
+export async function deleteUserSocial(uid: string): Promise<void> {
+  if (!uid) return;
+  await deleteMyProfile(uid).catch(() => {});
+  const [likesFrom, likesTo, blocksFrom] = await Promise.all([
+    getDocs(query(collection(db, LIKES), where('fromUid', '==', uid))),
+    getDocs(query(collection(db, LIKES), where('toUid', '==', uid))),
+    getDocs(query(collection(db, BLOCKS), where('blocker', '==', uid))),
+  ]);
+  await Promise.all([
+    ...likesFrom.docs.map(d => deleteDoc(d.ref).catch(() => {})),
+    ...likesTo.docs.map(d => deleteDoc(d.ref).catch(() => {})),
+    ...blocksFrom.docs.map(d => deleteDoc(d.ref).catch(() => {})),
+  ]);
 }

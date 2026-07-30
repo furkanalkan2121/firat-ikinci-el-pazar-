@@ -5,6 +5,7 @@ import { getListings, Listing } from '../lib/firestore';
 import { useAuth } from '../context/AuthContext';
 import { isFavorite, toggleFavorite } from '../lib/localFavorites';
 import { useToast } from '../context/ToastContext';
+import { useAuthGate } from '../lib/authGate';
 import { FU_FACULTIES, FU_CAMPUS_LOCATIONS, INITIAL_ANNOUNCEMENTS } from '../lib/localStore';
 
 const CATEGORIES = [
@@ -20,6 +21,7 @@ const CATEGORIES = [
 function ListingCard({ item }: { item: Listing }) {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const requireAuth = useAuthGate();
   const [imgErr, setImgErr] = useState(false);
   const [fav, setFav] = useState(false);
 
@@ -36,11 +38,8 @@ function ListingCard({ item }: { item: Listing }) {
   const handleFavClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!user) {
-      showToast('Favorilere eklemek için lütfen giriş yapın.', 'info');
-      return;
-    }
-    if (!item.id) return;
+    if (!requireAuth('Favorilere eklemek için lütfen giriş yapın.')) return;
+    if (!user || !item.id) return;
     const isNowFav = await toggleFavorite(user.uid, item.id);
     setFav(isNowFav);
     showToast(isNowFav ? 'Favorilere eklendi! ❤️' : 'Favorilerden çıkarıldı.', isNowFav ? 'success' : 'info');

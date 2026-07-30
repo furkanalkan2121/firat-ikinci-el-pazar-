@@ -8,12 +8,14 @@ import {
   joinClub,
   type Club,
 } from '../../lib/localClubs';
+import { useAuthGate } from '../../lib/authGate';
 
 const CATEGORIES = ['Tüm Kategoriler', 'Teknoloji & Mühendislik', 'Kültür & Sanat', 'Spor & Doğa', 'Sosyal Sorumluluk'];
 
 export default function TopluluklarPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const requireAuth = useAuthGate();
 
   const [clubs, setClubs] = useState<Club[]>([]);
   const [selectedCat, setSelectedCat] = useState('Tüm Kategoriler');
@@ -31,10 +33,7 @@ export default function TopluluklarPage() {
   }, []);
 
   const handleJoin = (club: Club) => {
-    if (!user) {
-      showToast('Kulübe katılmak için giriş yapmalısınız.', 'info');
-      return;
-    }
+    if (!requireAuth('Kulübe katılmak için lütfen giriş yapın.')) return;
 
     if (joinedClubs.includes(club.id)) {
       showToast(`Zaten ${club.name} kulübüne üyesiniz!`, 'info');
