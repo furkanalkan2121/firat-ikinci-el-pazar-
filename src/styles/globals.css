@@ -59,28 +59,99 @@ select {
   padding-right: 2.25rem !important;
 }
 
+/* ── 🌙 KAPSAMLI QA DARK MODE (KARANLIK TEMA) DESIGN SYSTEM ── */
 [data-theme="dark"] body {
   background-color: #121212 !important;
   color: #E5E7EB !important;
 }
 
-[data-theme="dark"] .card {
+/* Sayfa Arka Plan Gradiyenleri Override */
+[data-theme="dark"] div[style*="background: linear-gradient"],
+[data-theme="dark"] div[style*="background: 'linear-gradient"] {
+  background: #121212 !important;
+}
+
+/* Kartlar ve Beyaz Arka Planlı Konteynırlar */
+[data-theme="dark"] .card,
+[data-theme="dark"] div[style*="background: #fff"],
+[data-theme="dark"] div[style*="background: '#fff'"],
+[data-theme="dark"] div[style*="background: rgb(255, 255, 255)"],
+[data-theme="dark"] div[style*="background: #F9FAFB"],
+[data-theme="dark"] div[style*="background: '#F9FAFB'"],
+[data-theme="dark"] div[style*="background: #FFFDF9"] {
   background-color: #1E1E1E !important;
   color: #F3F4F6 !important;
   border-color: #2D2D2D !important;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
 }
 
-[data-theme="dark"] .form-input {
+/* Metin ve Başlık Renkleri Kontrast Optimizasyonu */
+[data-theme="dark"] h1, 
+[data-theme="dark"] h2, 
+[data-theme="dark"] h3,
+[data-theme="dark"] h4,
+[data-theme="dark"] strong,
+[data-theme="dark"] b {
+  color: #F9FAFB !important;
+}
+
+[data-theme="dark"] p,
+[data-theme="dark"] span[style*="color: #374151"],
+[data-theme="dark"] span[style*="color: #4B5563"],
+[data-theme="dark"] div[style*="color: #374151"],
+[data-theme="dark"] div[style*="color: #4B5563"],
+[data-theme="dark"] li[style*="color: #374151"] {
+  color: #D1D5DB !important;
+}
+
+[data-theme="dark"] span[style*="color: #6B7280"],
+[data-theme="dark"] div[style*="color: #6B7280"],
+[data-theme="dark"] p[style*="color: #6B7280"] {
+  color: #9CA3AF !important;
+}
+
+/* Input, Select, Textarea ve Form Elemanları */
+[data-theme="dark"] .form-input,
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] input[type="email"],
+[data-theme="dark"] input[type="password"],
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
   background-color: #2A2A2A !important;
   color: #F3F4F6 !important;
   border-color: #404040 !important;
 }
 
-[data-theme="dark"] h1, 
-[data-theme="dark"] h2, 
-[data-theme="dark"] h3 {
-  color: #F9FAFB !important;
+/* Tablolar ve Karşılaştırma Sayfası */
+[data-theme="dark"] table,
+[data-theme="dark"] tr,
+[data-theme="dark"] td,
+[data-theme="dark"] th {
+  background-color: #1E1E1E !important;
+  color: #E5E7EB !important;
+  border-color: #333333 !important;
+}
+
+[data-theme="dark"] th[style*="color: #6B7280"] {
+  color: #9CA3AF !important;
+}
+
+/* Modallar ve Açılır Çekmeceler (Dropdown & Modals) */
+[data-theme="dark"] div[style*="position: fixed"],
+[data-theme="dark"] div[style*="position: absolute"] {
+  border-color: #333333 !important;
+}
+
+/* Çip ve Buton Renk Düzeltmeleri */
+[data-theme="dark"] button[style*="background: #fff"],
+[data-theme="dark"] button[style*="background: '#fff'"] {
+  background: #2D2D2D !important;
+  color: #E5E7EB !important;
+  border-color: #404040 !important;
+}
+
+[data-theme="dark"] span[style*="background: #F3F4F6"] {
+  background: #2D2D2D !important;
+  color: #E5E7EB !important;
 }
 
 #__next { min-height: 100vh; display: flex; flex-direction: column; }
