@@ -60,28 +60,39 @@ select {
 }
 
 /* ── 🌙 KAPSAMLI QA DARK MODE (KARANLIK TEMA) DESIGN SYSTEM ── */
-[data-theme="dark"] body {
+[data-theme="dark"] body,
+[data-theme="dark"] main,
+[data-theme="dark"] #__next {
   background-color: #121212 !important;
   color: #E5E7EB !important;
 }
 
-/* Sayfa Arka Plan Gradiyenleri Override */
+/* Sayfa Arka Plan Gradiyenleri (#F5F0EB / #F0E8E8) Override */
 [data-theme="dark"] div[style*="background: linear-gradient"],
-[data-theme="dark"] div[style*="background: 'linear-gradient"] {
+[data-theme="dark"] div[style*="background: 'linear-gradient"],
+[data-theme="dark"] div[style*="#F5F0EB"],
+[data-theme="dark"] div[style*="#F0E8E8"] {
   background: #121212 !important;
+  background-color: #121212 !important;
 }
 
-/* Kartlar ve Beyaz Arka Planlı Konteynırlar */
+/* Kartlar, Duyuru Panoları ve Beyaz Arka Planlı Konteynırlar */
 [data-theme="dark"] .card,
+[data-theme="dark"] article,
 [data-theme="dark"] div[style*="background: #fff"],
 [data-theme="dark"] div[style*="background: '#fff'"],
+[data-theme="dark"] div[style*="background: #FFF"],
+[data-theme="dark"] div[style*="background: white"],
+[data-theme="dark"] div[style*="background:#fff"],
+[data-theme="dark"] div[style*="background: #ffffff"],
 [data-theme="dark"] div[style*="background: rgb(255, 255, 255)"],
 [data-theme="dark"] div[style*="background: #F9FAFB"],
 [data-theme="dark"] div[style*="background: '#F9FAFB'"],
 [data-theme="dark"] div[style*="background: #FFFDF9"] {
   background-color: #1E1E1E !important;
+  background: #1E1E1E !important;
   color: #F3F4F6 !important;
-  border-color: #2D2D2D !important;
+  border-color: #333333 !important;
 }
 
 /* Metin ve Başlık Renkleri Kontrast Optimizasyonu */
@@ -95,6 +106,12 @@ select {
 }
 
 [data-theme="dark"] p,
+[data-theme="dark"] span,
+[data-theme="dark"] div,
+[data-theme="dark"] li {
+  color: #E5E7EB;
+}
+
 [data-theme="dark"] span[style*="color: #374151"],
 [data-theme="dark"] span[style*="color: #4B5563"],
 [data-theme="dark"] div[style*="color: #374151"],
@@ -107,6 +124,13 @@ select {
 [data-theme="dark"] div[style*="color: #6B7280"],
 [data-theme="dark"] p[style*="color: #6B7280"] {
   color: #9CA3AF !important;
+}
+
+/* Soluk Duyuru ve Etkinlik Başlıkları */
+[data-theme="dark"] div[style*="color: #111827"],
+[data-theme="dark"] h2[style*="color: #111827"],
+[data-theme="dark"] h3[style*="color: #111827"] {
+  color: #FFFFFF !important;
 }
 
 /* Input, Select, Textarea ve Form Elemanları */
