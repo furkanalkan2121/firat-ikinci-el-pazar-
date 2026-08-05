@@ -6,6 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import {
   getClubs,
   joinClub,
+  submitClubApplication,
   type Club,
 } from '../../lib/localClubs';
 import { useAuthGate } from '../../lib/authGate';
@@ -21,6 +22,15 @@ export default function TopluluklarPage() {
   const [selectedCat, setSelectedCat] = useState('Tüm Kategoriler');
   const [search, setSearch] = useState('');
   const [joinedClubs, setJoinedClubs] = useState<string[]>([]);
+
+  // Kulüp Başvuru Modalı State'leri
+  const [showAppModal, setShowAppModal] = useState(false);
+  const [clubName, setClubName] = useState('');
+  const [appCategory, setAppCategory] = useState<any>('Teknoloji & Mühendislik');
+  const [logoEmoji, setLogoEmoji] = useState('🏛️');
+  const [studentNo, setStudentNo] = useState('');
+  const [appDepartment, setAppDepartment] = useState('');
+  const [appDesc, setAppDesc] = useState('');
 
   const loadData = () => {
     setClubs(getClubs());
@@ -45,6 +55,32 @@ export default function TopluluklarPage() {
     showToast(`Tebrikler! ${club.name} kulübüne üye oldunuz. 🎉`, 'success');
   };
 
+  const handleApplicationSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      showToast('Başvuru yapmak için lütfen giriş yapın.', 'info');
+      return;
+    }
+    if (!clubName.trim() || !appDesc.trim() || !studentNo.trim()) return;
+
+    submitClubApplication({
+      clubName: clubName.trim(),
+      category: appCategory,
+      logoEmoji: logoEmoji || '🏛️',
+      applicantEmail: user.email,
+      applicantName: user.email.split('@')[0],
+      studentNo: studentNo.trim(),
+      department: appDepartment.trim() || 'Fırat Üniversitesi',
+      description: appDesc.trim(),
+    });
+
+    setShowAppModal(false);
+    showToast('Kulüp başkanlığı başvurunuz alındı! Yönetim (Admin) onayından sonra aktif edilecektir. 🏛️', 'success');
+    setClubName('');
+    setStudentNo('');
+    setAppDesc('');
+  };
+
   const filteredClubs = clubs.filter(c => {
     const matchesCat = selectedCat === 'Tüm Kategoriler' || c.category === selectedCat;
     const q = search.trim().toLowerCase();
@@ -57,7 +93,7 @@ export default function TopluluklarPage() {
       <div style={{ background: 'linear-gradient(160deg,#F5F0EB 0%,#F0E8E8 100%)', minHeight: 'calc(100vh - 180px)', padding: '2.5rem 1.25rem 4rem' }}>
         <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
 
-          {/* Üst Başlık */}
+          {/* Üst Başlık & Başvuru Yap Butonu */}
           <div style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -68,9 +104,20 @@ export default function TopluluklarPage() {
                 FÜ Kulüpler &amp; Topluluklar 👑
               </h1>
               <p style={{ color: '#6B7280', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-                İlgi alanınıza uygun kulüplere katılın, etkinlikleri takip edin veya kulübünüzü yönetin.
+                İlgi alanınıza uygun kulüplere katılın, etkinlikleri takip edin veya kendi kulübünüzü kurun.
               </p>
             </div>
+
+            <button
+              onClick={() => {
+                if (!requireAuth('Kulüp açmak / Başkanlık başvurusu yapmak için lütfen giriş yapın.')) return;
+                setShowAppModal(true);
+              }}
+              className="btn btn-gold"
+              style={{ fontWeight: 800, padding: '0.75rem 1.25rem' }}
+            >
+              + Yeni Kulüp / Başkanlık Başvurusu
+            </button>
           </div>
 
           {/* Filtre Barı */}
@@ -214,6 +261,112 @@ export default function TopluluklarPage() {
 
         </div>
       </div>
+
+      {/* Yeni Kulüp / Başkanlık Başvurusu Modalı */}
+      {showAppModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '1rem',
+          }}
+          onClick={() => setShowAppModal(false)}
+        >
+          <div
+            className="card animate-slide-up"
+            onClick={e => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: '540px', padding: '1.75rem', border: 'none', maxHeight: '90vh', overflowY: 'auto' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+              <h2 style={{ fontWeight: 800, fontSize: '1.15rem', color: '#111827', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span>🏛️</span> Yeni Kulüp / Başkanlık Başvurusu
+              </h2>
+              <button onClick={() => setShowAppModal(false)} style={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: '1.2rem', cursor: 'pointer', boxShadow: 'none' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleApplicationSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label className="form-label">Kurulacak Kulüp / Topluluk Adı *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="örn. FÜ Yapay Zeka & Veri Bilimi Topluluğu"
+                  className="form-input"
+                  value={clubName}
+                  onChange={e => setClubName(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label className="form-label">Kategori</label>
+                  <select className="form-input" value={appCategory} onChange={e => setAppCategory(e.target.value as any)}>
+                    {CATEGORIES.filter(c => c !== 'Tüm Kategoriler').map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Kulüp Logosu (Emoji)</label>
+                  <input
+                    type="text"
+                    placeholder="🤖, 🎮, ⚽ vb."
+                    className="form-input"
+                    value={logoEmoji}
+                    onChange={e => setLogoEmoji(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label className="form-label">Öğrenci Numaranız *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="210101000"
+                    className="form-input"
+                    value={studentNo}
+                    onChange={e => setStudentNo(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Fakülteniz</label>
+                  <input
+                    type="text"
+                    placeholder="Mühendislik Fakültesi"
+                    className="form-input"
+                    value={appDepartment}
+                    onChange={e => setAppDepartment(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label">Kulüp Amacı &amp; Vizyonu *</label>
+                <textarea
+                  required
+                  rows={4}
+                  placeholder="Kulübün kuruluş amacı, yapılması planlanan etkinlikler ve öğrenci hedefleri…"
+                  className="form-input"
+                  value={appDesc}
+                  onChange={e => setAppDesc(e.target.value)}
+                />
+              </div>
+
+              <div style={{ fontSize: '0.75rem', color: '#6B7280', background: '#F9FAFB', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #F3F4F6' }}>
+                ℹ️ Başvurunuz FÜ Yönetim Paneline (Admin) iletilecektir. Onaylandığında kulübünüz yayınlanacak ve <strong>{user?.email}</strong> adresi Kulüp Başkanı olarak yetkilendirilecektir.
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button type="button" onClick={() => setShowAppModal(false)} className="btn btn-outline" style={{ flex: 1 }}>İptal</button>
+                <button type="submit" className="btn btn-gold" style={{ flex: 1, fontWeight: 800 }}>Başvuruyu Gönder 🏛️</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

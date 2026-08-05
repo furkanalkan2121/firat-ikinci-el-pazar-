@@ -8,6 +8,13 @@ import { getReports, updateReportStatus, type Report } from '../lib/localReports
 import { isAdminUser } from '../lib/auth';
 import { useToast } from '../context/ToastContext';
 
+import {
+  getClubApplications,
+  approveClubApplication,
+  rejectClubApplication,
+  type ClubApplication,
+} from '../lib/localClubs';
+
 export default function AdminPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -15,8 +22,13 @@ export default function AdminPage() {
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
-  const [activeTab, setActiveTab] = useState<'listings' | 'reports'>('listings');
+  const [clubApps, setClubApps] = useState<ClubApplication[]>([]);
+  const [activeTab, setActiveTab] = useState<'listings' | 'reports' | 'club_apps'>('listings');
   const [pageReady, setPageReady] = useState(false);
+
+  const loadClubApps = () => {
+    setClubApps(getClubApplications());
+  };
 
   useEffect(() => {
     if (loading) return;
@@ -29,7 +41,10 @@ export default function AdminPage() {
 
     getListings().then(setListings);
     setReports(getReports());
+    loadClubApps();
+    window.addEventListener('fu_club_apps_updated', loadClubApps);
     setPageReady(true);
+    return () => window.removeEventListener('fu_club_apps_updated', loadClubApps);
   }, [user, loading, router]);
 
   const handleDeleteListing = async (id: string, title: string) => {
@@ -210,6 +225,24 @@ export default function AdminPage() {
                 </span>
               )}
             </button>
+
+            <button
+              onClick={() => setActiveTab('club_apps')}
+              style={{
+                padding: '0.5rem 1.25rem', borderRadius: '0.5rem', border: 'none',
+                background: activeTab === 'club_apps' ? '#8B1A1A' : 'transparent',
+                color: activeTab === 'club_apps' ? '#fff' : '#4B5563',
+                fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer', fontFamily: 'inherit',
+                boxShadow: 'none', transition: 'all 0.2s', position: 'relative',
+              }}
+            >
+              🏛️ Kulüp Başvuruları ({clubApps.length})
+              {clubApps.filter(a => a.status === 'pending').length > 0 && (
+                <span style={{ marginLeft: '0.5rem', background: '#F59E0B', color: '#fff', borderRadius: '999px', padding: '0.1rem 0.5rem', fontSize: '0.7rem' }}>
+                  {clubApps.filter(a => a.status === 'pending').length}
+                </span>
+              )}
+            </button>
           </div>
 
           {/* Tab 1: Tüm İlanlar */}
@@ -309,6 +342,81 @@ export default function AdminPage() {
                             className="btn btn-outline btn-sm"
                           >
                             Şikayeti Reddet
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab 3: Kulüp / Başkanlık Başvuruları */}
+          {activeTab === 'club_apps' && (
+            <div className="card" style={{ padding: '1.5rem', border: 'none' }}>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#111827', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span>🏛️</span> Kulüp &amp; Başkanlık Başvuruları ({clubApps.length})
+              </h2>
+
+              {clubApps.length === 0 ? (
+                <div style={{ padding: '2rem', textAlign: 'center', color: '#9CA3AF' }}>
+                  Henüz gelen bir kulüp açma veya başkanlık başvurusu yok.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {clubApps.map(app => (
+                    <div
+                      key={app.id}
+                      style={{
+                        padding: '1.25rem', borderRadius: '0.75rem', border: '1px solid #E5E7EB',
+                        background: app.status === 'pending' ? '#FFFDF9' : app.status === 'approved' ? '#F0FDF4' : '#FEF2F2',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontSize: '1.5rem' }}>{app.logoEmoji || '🏛️'}</span>
+                          <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#111827' }}>{app.clubName}</span>
+                          <span className="badge badge-gold" style={{ fontSize: '0.7rem' }}>{app.category}</span>
+                        </div>
+
+                        <span className="badge" style={{
+                          background: app.status === 'pending' ? '#FEF3C7' : app.status === 'approved' ? '#D1FAE5' : '#FEE2E2',
+                          color: app.status === 'pending' ? '#92400E' : app.status === 'approved' ? '#065F46' : '#991B1B',
+                          fontSize: '0.75rem', fontWeight: 800,
+                        }}>
+                          {app.status === 'pending' ? '⏳ Onay Bekliyor' : app.status === 'approved' ? '✅ Onaylandı (Kulüp Açıldı)' : '❌ Reddedildi'}
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: '0.82rem', color: '#374151', marginBottom: '0.75rem', background: '#fff', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #F3F4F6' }}>
+                        <div><strong>👤 Başvuran Öğrenci:</strong> {app.applicantName} ({app.applicantEmail})</div>
+                        <div><strong>🆔 Öğrenci No:</strong> {app.studentNo} | <strong>Fakülte:</strong> {app.department}</div>
+                        <div style={{ marginTop: '0.35rem', fontStyle: 'italic', color: '#4B5563' }}>"{app.description}"</div>
+                      </div>
+
+                      {app.status === 'pending' && (
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            onClick={() => {
+                              if (confirm(`"${app.clubName}" kulübünü onaylayıp ${app.applicantEmail} kullanıcısını Kulüp Başkanı yapmak istiyor musunuz?`)) {
+                                approveClubApplication(app.id);
+                                showToast(`"${app.clubName}" onaylandı ve resmi olarak açıldı! 🏛️`, 'success');
+                              }
+                            }}
+                            className="btn btn-sm"
+                            style={{ background: '#059669', color: '#fff', border: 'none', fontWeight: 800 }}
+                          >
+                            ✅ Onayla &amp; Başkanı Yap
+                          </button>
+                          <button
+                            onClick={() => {
+                              rejectClubApplication(app.id);
+                              showToast('Başvuru reddedildi.', 'info');
+                            }}
+                            className="btn btn-outline btn-sm"
+                          >
+                            ❌ Reddet
                           </button>
                         </div>
                       )}

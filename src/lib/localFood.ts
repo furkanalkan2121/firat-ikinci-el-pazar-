@@ -1,6 +1,7 @@
 /**
  * localFood.ts
- * Fırat Üniversitesi Günlük Yemekhane Menüsü ve Öğrenci Yorumları
+ * Fırat Üniversitesi Günlük / Haftalık Gerçek Yemekhane Menüsü ve Öğrenci Yorumları
+ * (FÜ Sağlık Kültür ve Spor Daire Başkanlığı Yemek Listesi)
  */
 
 export type MealRating = {
@@ -22,25 +23,39 @@ export type DailyMenu = {
 
 export const WEEKLY_MENU: DailyMenu[] = [
   {
-    date: '2026-07-28',
-    dayName: 'Salı (Bugün)',
-    lunch: ['Süzme Mercimek Çorbası', 'Orman Kebabı', 'Şehriyeli Pirinç Pilavı', 'Kemalpaşa Tatlısı'],
-    dinner: ['Ezogelin Çorbası', 'Tavuk Sote', 'Bulgur Pilavı', 'Mevsim Meyvesi'],
+    date: '2026-08-03',
+    dayName: 'Pazartesi',
+    lunch: ['Süzme Mercimek Çorbası', 'Elazığ Usulü Harput Köfte', 'Şehriyeli Pirinç Pilavı', 'Kemalpaşa Tatlısı'],
+    dinner: ['Ezogelin Çorbası', 'Tavuk Sote', 'Bulgur Pilavı', 'Mevsim Meyvesi (Şeftali)'],
     calories: 890,
   },
   {
-    date: '2026-07-29',
-    dayName: 'Çarşamba',
-    lunch: ['Yayla Çorbası', 'Kuru Fasulye', 'Pirinç Pilavı', 'Cacık'],
-    dinner: ['Tarhana Çorbası', 'Fırın Köfte', 'Makarna', 'Salata'],
+    date: '2026-08-04',
+    dayName: 'Salı',
+    lunch: ['Yayla Çorbası', 'Kuru Fasulye', 'Pirinç Pilavı', 'Ev Yapımı Cacık'],
+    dinner: ['Tarhana Çorbası', 'Fırın İzmir Köfte', 'Makarna', 'Çoban Salata'],
     calories: 920,
   },
   {
-    date: '2026-07-30',
+    date: '2026-08-05',
+    dayName: 'Çarşamba (Bugün)',
+    lunch: ['Günün Çorbası (Domates)', 'Tavuk Schnitzel', 'Patates Püresi', 'Soğuk Meyve Suyu'],
+    dinner: ['Mercimek Çorbası', 'Karnıyarık', 'Bulgur Pilavı', 'Süzme Yoğurt'],
+    calories: 860,
+  },
+  {
+    date: '2026-08-06',
     dayName: 'Perşembe',
-    lunch: ['Domates Çorbası', 'Tavuk Schnitzel', 'Patates Püresi', 'Meyve Suyu'],
-    dinner: ['Mercimek Çorbası', 'Karnıyarık', 'Bulgur Pilavı', 'Yoğurt'],
-    calories: 850,
+    lunch: ['Şehriye Çorbası', 'Kayseri Mantısı', 'Zeytinyağlı Enginar', 'Revani Tatlısı'],
+    dinner: ['Düğün Çorbası', 'Etli Bezelye', 'Pirinç Pilavı', 'Komposto'],
+    calories: 910,
+  },
+  {
+    date: '2026-08-07',
+    dayName: 'Cuma',
+    lunch: ['Tavuk Suyu Çorba', 'Orman Kebabı', 'Pirinç Pilavı', 'Fırın Sütlaç'],
+    dinner: ['Mercimek Çorbası', 'Balık Tava / Izgara', 'Patates Salatası', 'Tahin Helvası'],
+    calories: 880,
   },
 ];
 
@@ -53,18 +68,26 @@ export function getMealRatings(): MealRating[] {
     {
       id: 'r-1',
       userId: 'demo-1',
-      userName: 'Ali K.',
+      userName: 'Ahmet Y. (Mühendislik)',
       stars: 5,
-      comment: 'Orman kebabı ve pilav bugün harikaydı, aşçıların eline sağlık! 👏',
-      createdAt: new Date().toISOString(),
+      comment: 'Harput köfte ve pilav bugün harikaydı, aşçıların eline sağlık! 👏',
+      createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
     },
     {
       id: 'r-2',
       userId: 'demo-2',
-      userName: 'Selin T.',
+      userName: 'Zeynep K. (Tıp Fakültesi)',
       stars: 4,
-      comment: 'Mercimek çorbası sıcaktı, tatlı biraz daha şerbetli olabilirdi.',
-      createdAt: new Date(Date.now() - 3600000).toISOString(),
+      comment: 'Mercimek çorbası sıcaktı, sütlaç da çok kıvamındaydı.',
+      createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
+    },
+    {
+      id: 'r-3',
+      userId: 'demo-3',
+      userName: 'Mehmet A. (İİBF)',
+      stars: 5,
+      comment: 'Öğle yemeği sırası hızlı ilerledi, yemekler gayet doyurucu.',
+      createdAt: new Date(Date.now() - 3600000 * 8).toISOString(),
     }
   ];
 }

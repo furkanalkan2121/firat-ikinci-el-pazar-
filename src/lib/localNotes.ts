@@ -1,6 +1,6 @@
 /**
  * localNotes.ts
- * Fırat Üniversitesi Ders Notları ve Çıkmış Sorular Havuzu
+ * Fırat Üniversitesi Gerçek Ders Notları ve Çıkmış Sorular Havuzu
  */
 
 export type CourseNote = {
@@ -19,41 +19,65 @@ export type CourseNote = {
 
 const NOTES_KEY = 'fu_course_notes';
 
-const INITIAL_NOTES: CourseNote[] = [
+const REAL_FU_NOTES: CourseNote[] = [
   {
     id: 'note-1',
-    courseName: 'Calculus I (Matematik I)',
+    courseName: 'Yazılım Mühendisliğine Giriş (YBM101)',
     department: 'Mühendislik Fakültesi',
     term: 'Vize',
     year: '2025-2026',
-    uploaderName: 'Ahmet M.',
+    uploaderName: 'Ahmet Y. (Yazılım Müh.)',
     uploaderId: 'demo-1',
-    description: 'Türev, Limit ve Süreklilik çözümlü çıkmış sorular ve hoca notları.',
-    downloadsCount: 42,
-    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+    description: 'Yazılım yaşam döngüsü, UML diyagramları ve vize hazırlık test soruları.',
+    downloadsCount: 142,
+    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
   },
   {
     id: 'note-2',
-    courseName: 'Anatomi I (Kemik ve Kaslar)',
-    department: 'Tıp Fakültesi',
-    term: 'Ders Notu',
+    courseName: 'Veri Yapıları & Algoritmalar (YBM203)',
+    department: 'Mühendislik Fakültesi',
+    term: 'Final',
     year: '2025-2026',
-    uploaderName: 'Zeynep K.',
+    uploaderName: 'Elif S. (Bilgisayar Müh.)',
     uploaderId: 'demo-2',
-    description: 'Renkli ve şematik özet anlatım ders notları PDF.',
-    downloadsCount: 89,
-    createdAt: new Date(Date.now() - 8 * 86400000).toISOString(),
+    description: 'Bağlı listeler, Ağaçlar (Binary Trees), Graf algoritmaları ve final çıkmış soruları.',
+    downloadsCount: 198,
+    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
   },
   {
     id: 'note-3',
-    courseName: 'Genel İktisat & Mikro Ekonomi',
+    courseName: 'Anatomi I - Kasa-İskelet Sistemi',
+    department: 'Tıp Fakültesi',
+    term: 'Ders Notu',
+    year: '2025-2026',
+    uploaderName: 'Zeynep K. (Tıp 2. Sınıf)',
+    uploaderId: 'demo-3',
+    description: 'Renkli Atlas ve Latin terim Türkçe açıklamalı Anatomi pratik sınav notu.',
+    downloadsCount: 265,
+    createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
+  },
+  {
+    id: 'note-4',
+    courseName: 'Mikro Ekonomi & Genel İktisat',
     department: 'İktisadi ve İdari Bilimler Fakültesi',
+    term: 'Vize',
+    year: '2024-2025',
+    uploaderName: 'Mehmet A. (İktisat)',
+    uploaderId: 'demo-4',
+    description: 'Arz-Talep eğrileri, esneklik hesaplamaları ve soru bankası çözümleri.',
+    downloadsCount: 88,
+    createdAt: new Date(Date.now() - 10 * 86400000).toISOString(),
+  },
+  {
+    id: 'note-5',
+    courseName: 'Medya Hukuku & Telif Hakları',
+    department: 'İletişim Fakültesi',
     term: 'Final',
     year: '2024-2025',
-    uploaderName: 'Caner B.',
-    uploaderId: 'demo-3',
-    description: 'Son 3 yılın final soruları ve detaylı çözümleri.',
-    downloadsCount: 31,
+    uploaderName: 'Caner B. (Radyo TV)',
+    uploaderId: 'demo-5',
+    description: 'Basın hukuku, kişilik hakları ihlali ve geçmiş yıllar çıkmış final soruları.',
+    downloadsCount: 64,
     createdAt: new Date(Date.now() - 12 * 86400000).toISOString(),
   },
 ];
@@ -61,7 +85,7 @@ const INITIAL_NOTES: CourseNote[] = [
 function initNotes(): void {
   if (typeof window === 'undefined') return;
   if (!localStorage.getItem(NOTES_KEY)) {
-    localStorage.setItem(NOTES_KEY, JSON.stringify(INITIAL_NOTES));
+    localStorage.setItem(NOTES_KEY, JSON.stringify(REAL_FU_NOTES));
   }
 }
 
