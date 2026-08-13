@@ -23,29 +23,15 @@ export default function Header() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
-  // Dark mode başlatma
+  // Sayfa yüklendiğinde varsayılan temayı temizle (Dark mode tamamen kaldırıldı)
   useEffect(() => {
-    const savedTheme = localStorage.getItem('fu_theme');
-    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      setDarkMode(true);
-      document.documentElement.setAttribute('data-theme', 'dark');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('fu_theme');
+      document.documentElement.removeAttribute('data-theme');
     }
   }, []);
-
-  const toggleDarkMode = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    if (newMode) {
-      document.documentElement.setAttribute('data-theme', 'dark');
-      localStorage.setItem('fu_theme', 'dark');
-    } else {
-      document.documentElement.removeAttribute('data-theme');
-      localStorage.setItem('fu_theme', 'light');
-    }
-  };
 
   // Bildirim ve sayacı yükle
   const updateCounts = async () => {
@@ -123,19 +109,6 @@ export default function Header() {
 
         {/* Desktop Nav */}
         <nav className="desktop-nav" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {/* Dark Mode Butonu */}
-          <button
-            onClick={toggleDarkMode}
-            title={darkMode ? 'Aydınlık Mod' : 'Karanlık Mod'}
-            style={{
-              background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
-              width: 34, height: 34, borderRadius: '50%', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem',
-              boxShadow: 'none', transition: 'background 0.2s',
-            }}
-          >
-            {darkMode ? '☀️' : '🌙'}
-          </button>
 
           {/* Kampüs Tanışma */}
           <Link href="/tanisma" style={navLinkStyle('/tanisma')}>
@@ -350,17 +323,6 @@ export default function Header() {
 
         {/* Mobil Hamburger Butonu */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <button
-            onClick={toggleDarkMode}
-            style={{
-              background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
-              width: 34, height: 34, borderRadius: '50%', cursor: 'pointer',
-              fontSize: '1rem', display: 'none',
-            }}
-            className="mobile-dark-btn"
-          >
-            {darkMode ? '☀️' : '🌙'}
-          </button>
           <button
             onClick={() => setMobileNavOpen(o => !o)}
             className="mobile-menu-btn"

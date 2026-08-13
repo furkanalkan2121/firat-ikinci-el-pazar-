@@ -5,9 +5,19 @@ import Layout from '../../components/Layout';
 import { signIn } from '../../lib/auth';
 
 async function postJson(url: string, body: any) {
-  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || 'Bir hata oluştu.');
+  let res: Response;
+  try {
+    res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } catch (e: any) {
+    throw new Error('Sunucuya ulaşılamadı (ağ hatası).');
+  }
+  const text = await res.text();
+  let data: any = {};
+  try { data = text ? JSON.parse(text) : {}; } catch { /* JSON değil */ }
+  if (!res.ok) {
+    // Sunucunun asıl hata mesajını göster (yoksa durum kodu + gövde parçası)
+    throw new Error(data?.error || `Sunucu hatası (${res.status})${text ? ': ' + text.slice(0, 140) : ''}`);
+  }
   return data;
 }
 
