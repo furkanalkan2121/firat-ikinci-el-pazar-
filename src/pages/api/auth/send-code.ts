@@ -1,15 +1,14 @@
 /**
  * POST /api/auth/send-code
  * Body: { email }
- * 6 haneli doğrulama kodu üretir, Firestore'a (hash'li) yazar ve Brevo ile e-posta gönderir.
- * Kod istemciye ASLA dönmez.
+ * 6 haneli doğrulama kodu üretir, Firestore'a (hash'li) yazar ve Gmail ile e-posta gönderir.
+ * Ağır modüller (firebase-admin, nodemailer) DİNAMİK yüklenir; yükleme hatası bile
+ * yakalanıp temiz JSON olarak döner (Vercel'de sunucusuz yükleme sorunlarını görünür kılmak için).
  */
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createHash, randomInt } from 'crypto';
-import nodemailer from 'nodemailer';
-import { adminAuth, adminDb } from '../../../lib/firebaseAdmin';
 
-// Vercel fonksiyon süresi sınırını yükselt (SMTP + admin için pay bırak)
+// Vercel fonksiyon süresi sınırını yükselt
 export const config = { maxDuration: 30 };
 
 const CODE_TTL_MS = 10 * 60 * 1000; // 10 dakika
@@ -17,21 +16,16 @@ const emailKey = (email: string) => email.trim().toLowerCase();
 const hashCode = (code: string, email: string) =>
   createHash('sha256').update(`${code}:${emailKey(email)}`).digest('hex');
 
-/** Kendi Gmail hesabından (Uygulama Şifresi ile) e-posta gönderir — Brevo vb. gerekmez. */
 async function sendCodeEmail(email: string, code: string) {
   const user = process.env.GMAIL_USER;
-  // Uygulama şifresi boşluklu yapıştırılmış olabilir ("abcd efgh ...") — boşlukları temizle
-  const pass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s/g, '');
+  const pass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s/g, ''); // boşlukları temizle
   if (!user || !pass) throw new Error('Gmail ortam değişkenleri eksik (GMAIL_USER / GMAIL_APP_PASSWORD).');
 
+  const nodemailer = (await import('nodemailer')).default;
   const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
+    host: 'smtp.gmail.com', port: 465, secure: true,
     auth: { user, pass },
-    connectionTimeout: 8000,
-    greetingTimeout: 8000,
-    socketTimeout: 8000,
+    connectionTimeout: 8000, greetingTimeout: 8000, socketTimeout: 8000,
   });
 
   await transporter.sendMail({
@@ -58,12 +52,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Geçerli bir e-posta adresi girin.' });
     }
 
+    // Ağır modülü fonksiyon içinde yükle (yükleme hatası da yakalanabilsin)
+    const { adminAuth, adminDb } = await import('../../../lib/firebaseAdmin');
+
     // Zaten kayıtlı mı?
     try {
       await adminAuth().getUserByEmail(email);
       return res.status(409).json({ error: 'Bu e-posta adresi zaten kullanımda.' });
     } catch (e: any) {
-      if (e?.code !== 'auth/user-not-found') throw e; // başka hata ise yükselt
+      if (e?.code !== 'auth/user-not-found') throw e;
     }
 
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
@@ -77,6 +74,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await sendCodeEmail(email, code);
     return res.status(200).json({ ok: true });
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Kod gönderilemedi.' });
+    // Gerçek sebebi istemciye taşı (kod/mesaj)
+    const msg = err?.errorInfo?.message || err?.message || String(err);
+    return res.status(500).json({ error: msg });
   }
 }

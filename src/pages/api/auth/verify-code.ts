@@ -5,7 +5,8 @@
  */
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createHash } from 'crypto';
-import { adminAuth, adminDb } from '../../../lib/firebaseAdmin';
+
+export const config = { maxDuration: 30 };
 
 const emailKey = (email: string) => email.trim().toLowerCase();
 const hashCode = (code: string, email: string) =>
@@ -21,6 +22,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (!email || !code) return res.status(400).json({ error: 'Eksik bilgi.' });
     if (password.length < 6) return res.status(400).json({ error: 'Şifre en az 6 karakter olmalı.' });
+
+    const { adminAuth, adminDb } = await import('../../../lib/firebaseAdmin');
 
     const ref = adminDb().collection('emailCodes').doc(emailKey(email));
     const snap = await ref.get();
@@ -41,7 +44,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Doğrulama kodu hatalı.' });
     }
 
-    // Kod doğru — hesabı doğrulanmış olarak oluştur
     try {
       await adminAuth().createUser({ email, password, emailVerified: true });
     } catch (e: any) {
@@ -53,6 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await ref.delete().catch(() => {});
     return res.status(200).json({ ok: true });
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Doğrulama başarısız.' });
+    const msg = err?.errorInfo?.message || err?.message || String(err);
+    return res.status(500).json({ error: msg });
   }
 }
