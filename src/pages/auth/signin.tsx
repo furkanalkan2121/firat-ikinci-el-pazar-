@@ -109,6 +109,12 @@ export default function Signin() {
               </div>
             </div>
 
+            <div style={{ textAlign: 'right', marginBottom: '1rem', marginTop: '-0.25rem' }}>
+              <Link href="/auth/reset" style={{ color: '#8B1A1A', fontSize: '0.8rem', fontWeight: 600, textDecoration: 'none' }}>
+                Şifremi unuttum?
+              </Link>
+            </div>
+
             {message && (
               <div className={`alert ${isError ? 'alert-error' : 'alert-success'}`} style={{ marginBottom: '1.125rem' }}>
                 {message}
