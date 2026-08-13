@@ -9,6 +9,9 @@ import { createHash, randomInt } from 'crypto';
 import nodemailer from 'nodemailer';
 import { adminAuth, adminDb } from '../../../lib/firebaseAdmin';
 
+// Vercel fonksiyon süresi sınırını yükselt (SMTP + admin için pay bırak)
+export const config = { maxDuration: 30 };
+
 const CODE_TTL_MS = 10 * 60 * 1000; // 10 dakika
 const emailKey = (email: string) => email.trim().toLowerCase();
 const hashCode = (code: string, email: string) =>
@@ -17,12 +20,18 @@ const hashCode = (code: string, email: string) =>
 /** Kendi Gmail hesabından (Uygulama Şifresi ile) e-posta gönderir — Brevo vb. gerekmez. */
 async function sendCodeEmail(email: string, code: string) {
   const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
+  // Uygulama şifresi boşluklu yapıştırılmış olabilir ("abcd efgh ...") — boşlukları temizle
+  const pass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s/g, '');
   if (!user || !pass) throw new Error('Gmail ortam değişkenleri eksik (GMAIL_USER / GMAIL_APP_PASSWORD).');
 
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
     auth: { user, pass },
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 8000,
   });
 
   await transporter.sendMail({
