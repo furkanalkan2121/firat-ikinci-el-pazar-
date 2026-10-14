@@ -55,21 +55,14 @@ export default function Signup() {
     if (password.length < 6)  { setIsError(true); setMessage('Şifre en az 6 karakter olmalıdır.'); return; }
     setLoading(true);
     try {
-      const resData = await postJson('/api/auth/send-code', { email });
+      await postJson('/api/auth/send-code', { email });
       setIsError(false);
-      if (resData?.testMode && resData?.message) {
-        setMessage(resData.message);
-      } else {
-        setMessage('');
-      }
-      setCode(resData?.testMode ? '123456' : '');
+      setMessage('');
+      setCode('');
       setStep('verify');
     } catch (err: any) {
-      // Hata alınsa dahi test modunu aktifleştirip kaydı engelleme
-      setIsError(false);
-      setMessage('Test Modu Aktif. Doğrulama kodunuz: 123456');
-      setCode('123456');
-      setStep('verify');
+      setIsError(true);
+      setMessage(err.message || 'Kod gönderilemedi.');
     } finally {
       setLoading(false);
     }
@@ -81,17 +74,10 @@ export default function Signup() {
     setMessage('');
     setLoading(true);
     try {
+      // Kodu doğrula — doğruysa hesap sunucuda (emailVerified:true) oluşturulur
       await postJson('/api/auth/verify-code', { email, code, password });
-      
-      // Client-side giriş dene
-      try {
-        await signIn(email, password);
-      } catch {
-        // İstemci tarafında ilk kez oluşturuluyorsa signUp'ı dene
-        const { signUp } = await import('../../lib/auth');
-        await signUp(email, password).catch(() => {});
-      }
-
+      // Hesap hazır — giriş yap
+      await signIn(email, password);
       setIsError(false);
       setMessage('Hesabınız başarıyla doğrulandı ve oluşturuldu! Yönlendiriliyorsunuz…');
       setTimeout(() => router.push('/'), 700);

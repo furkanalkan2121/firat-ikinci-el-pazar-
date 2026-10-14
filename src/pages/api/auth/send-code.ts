@@ -2,13 +2,11 @@
  * POST /api/auth/send-code
  * Body: { email }
  * 6 haneli doğrulama kodu üretir, Firestore'a (hash'li) yazar ve Gmail ile e-posta gönderir.
- * Ağır modüller (firebase-admin, nodemailer) DİNAMİK yüklenir; yükleme hatası bile
- * yakalanıp temiz JSON olarak döner (Vercel'de sunucusuz yükleme sorunlarını görünür kılmak için).
+ * Kod istemciye ASLA dönmez.
  */
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createHash, randomInt } from 'crypto';
 
-// Vercel fonksiyon süresi sınırını yükselt
 export const config = { maxDuration: 30 };
 
 const CODE_TTL_MS = 10 * 60 * 1000; // 10 dakika
@@ -18,7 +16,7 @@ const hashCode = (code: string, email: string) =>
 
 async function sendCodeEmail(email: string, code: string) {
   const user = process.env.GMAIL_USER;
-  const pass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s/g, ''); // boşlukları temizle
+  const pass = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s/g, '');
   if (!user || !pass) throw new Error('Gmail ortam değişkenleri eksik (GMAIL_USER / GMAIL_APP_PASSWORD).');
 
   const nodemailer = (await import('nodemailer')).default;
@@ -52,27 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Geçerli bir e-posta adresi girin.' });
     }
 
-    let isFirebaseAvailable = true;
-    let adminAuth: any;
-    let adminDb: any;
-
-    try {
-      const fb = await import('../../../lib/firebaseAdmin');
-      adminAuth = fb.adminAuth;
-      adminDb = fb.adminDb;
-    } catch {
-      isFirebaseAvailable = false;
-    }
-
-    // Firebase Admin ortam değişkenleri tam tanımlı değilse Local Test Modu yanıtı dön
-    if (!isFirebaseAvailable || !process.env.FIREBASE_ADMIN_PROJECT_ID) {
-      console.warn('⚠️ Firebase Admin sunucu değişkenleri bulunamadı. Test Modu (Kod: 123456) aktif.');
-      return res.status(200).json({
-        ok: true,
-        testMode: true,
-        message: 'Ortam değişkenleri tanımlı olmadığından Test Modu aktif. Doğrulama kodunuz: 123456',
-      });
-    }
+    const { adminAuth, adminDb } = await import('../../../lib/firebaseAdmin');
 
     // Zaten kayıtlı mı?
     try {
@@ -90,24 +68,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       createdAt: Date.now(),
     });
 
-    try {
-      await sendCodeEmail(email, code);
-      return res.status(200).json({ ok: true });
-    } catch (mailErr: any) {
-      // E-posta gönderimi başarısız olsa bile test için kodu istemciye ulaştır
-      return res.status(200).json({
-        ok: true,
-        testMode: true,
-        message: `E-posta gönderimi yapılamadı. Test Doğrulama Kodunuz: ${code}`,
-      });
-    }
+    await sendCodeEmail(email, code);
+    return res.status(200).json({ ok: true });
   } catch (err: any) {
     const msg = err?.errorInfo?.message || err?.message || String(err);
-    // Hata olsa bile kullanıcının kaydını kesmemek için Test Modu kodu öner
-    return res.status(200).json({
-      ok: true,
-      testMode: true,
-      message: 'Test Modu Aktif. Doğrulama kodunuz: 123456',
-    });
+    return res.status(500).json({ error: msg });
   }
 }

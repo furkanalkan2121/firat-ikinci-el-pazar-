@@ -23,31 +23,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!email || !code) return res.status(400).json({ error: 'Eksik bilgi.' });
     if (password.length < 6) return res.status(400).json({ error: 'Şifre en az 6 karakter olmalı.' });
 
-    // Test Kodu Her Zaman Kabul Edilsin (Geliştirme & Test Ortamı İçin)
-    if (code === '123456') {
-      return res.status(200).json({ ok: true, testVerified: true });
-    }
-
-    let isFirebaseAvailable = true;
-    let adminAuth: any;
-    let adminDb: any;
-
-    try {
-      const fb = await import('../../../lib/firebaseAdmin');
-      adminAuth = fb.adminAuth;
-      adminDb = fb.adminDb;
-    } catch {
-      isFirebaseAvailable = false;
-    }
-
-    if (!isFirebaseAvailable || !process.env.FIREBASE_ADMIN_PROJECT_ID) {
-      // Firebase Admin yoksa test modunda kabul et
-      return res.status(200).json({ ok: true, testVerified: true });
-    }
+    const { adminAuth, adminDb } = await import('../../../lib/firebaseAdmin');
 
     const ref = adminDb().collection('emailCodes').doc(emailKey(email));
     const snap = await ref.get();
-    if (!snap.exists) return res.status(400).json({ error: 'Kod bulunamadı. Lütfen "123456" kodunu deneyin.' });
+    if (!snap.exists) return res.status(400).json({ error: 'Kod bulunamadı. Lütfen tekrar kod isteyin.' });
 
     const data = snap.data() as { codeHash: string; expiresAt: number; attempts: number };
     if (Date.now() > data.expiresAt) {
@@ -58,12 +38,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await ref.delete().catch(() => {});
       return res.status(429).json({ error: 'Çok fazla hatalı deneme. Lütfen yeni kod isteyin.' });
     }
-
     if (hashCode(code, email) !== data.codeHash) {
       await ref.update({ attempts: (data.attempts ?? 0) + 1 }).catch(() => {});
-      return res.status(400).json({ error: 'Doğrulama kodu hatalı. Test modu için 123456 kullanabilirsiniz.' });
+      return res.status(400).json({ error: 'Doğrulama kodu hatalı.' });
     }
 
+    // Kod doğru — hesabı doğrulanmış olarak oluştur
     try {
       await adminAuth().createUser({ email, password, emailVerified: true });
     } catch (e: any) {
@@ -75,7 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await ref.delete().catch(() => {});
     return res.status(200).json({ ok: true });
   } catch (err: any) {
-    // Sunucu tarafında beklenmeyen hata olsa dahi kullanıcının test kaydını bozma
-    return res.status(200).json({ ok: true, testVerified: true });
+    const msg = err?.errorInfo?.message || err?.message || String(err);
+    return res.status(500).json({ error: msg });
   }
 }
